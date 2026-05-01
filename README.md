@@ -88,9 +88,9 @@ The full rendered report (overall summary + the three rotating-primary-key repor
 npm run eval > evals/runs/last-report.md
 ```
 
-### Interactive HTML comparison across runs
+### Interactive HTML comparison
 
-For ad-hoc cohort comparisons over time (e.g. "is v0 better than v1 by groundedness, holding up across our last 15 runs?"), generate a self-contained HTML page that ingests every `report-*.json` in a directory:
+For ad-hoc cohort comparisons (e.g. "is v0 better than v1 by groundedness on each item of the unanswerable dataset?"), generate a self-contained HTML page that ingests every `report-*.json` in a directory:
 
 ```bash
 # Default: scan evals/runs/, take the 15 most recent reports by runAt
@@ -100,13 +100,16 @@ npm run report:html
 npm run report:html -- evals/runs --limit 30 --out comparison.html
 ```
 
-The page (Chart.js loaded from CDN, all data embedded with `retrievedContext` stripped) lets you:
+The chart's X-axis is **data points**, not run timestamps — each X position is either a single (item × iteration) or a single item depending on the granularity picker. Run dates aren't surfaced.
 
-- Toggle **Pin** checkboxes for prompt / dataset / judge — each cohort pins the chosen dimensions; unpinned dims are aggregated within each report.
-- Add **cohorts**: each fixes values for the pinned dims. So cohorts are always commensurable — you can't compare a `prompt+dataset` cohort against a `judge+dataset` one because they don't share a pin set.
-- Pick **metrics** (multi-select): mean score, pass rate, p50/p95 latency, mean tokens, mean searches, mean cost, error rate, row count. Each metric gets its own chart, all sharing the same cohort lines.
+How it works:
 
-The X-axis is always the run timestamps (oldest → newest), so each cohort renders as a time series. Hovering shows the full ISO timestamp. Toggling the Pin checkboxes resets the cohort list (the shape changed).
+- Toggle **Pin** checkboxes for prompt / dataset / judge — each cohort fixes the pinned dims; unpinned dims aggregate.
+- For each pinned dim, the cohort dropdown lists `id (hash)` options. The **hash makes cohorts hash-aware**: data from a report only counts toward a cohort if the report's artifact hash for that pinned id matches. So measurements accumulate across runs only when the pinned artifacts are byte-identical.
+- **Granularity**: "per iteration" (each item × iter is one X position) or "per item" (mean of iterations). Y at each position is the mean of all matching rows from all qualifying reports.
+- **Metrics** (multi-select): mean score, pass rate, p50/p95 latency, mean tokens, mean searches, mean cost, error rate. Each metric gets its own chart, all sharing the same cohort lines and X-axis.
+
+If you edit a prompt YAML and re-run, the new hash gives you a separate cohort option (`v1 (newhash)`) so you can compare old-v1 vs new-v1 directly without mixing them. Toggling the Pin checkboxes resets the cohort list (the shape changed).
 
 Adding a new prompt, dataset, or judge:
 - **Prompt**: drop a `<id>.yaml` file under `src/prompts/`. It's auto-discovered. The YAML carries `id`, `description`, `systemPrompt`, and the full `tool` schema.
