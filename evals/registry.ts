@@ -11,7 +11,7 @@ import {
 import { shortHash } from "../src/hash.ts";
 
 import type { Dataset, DatasetItem } from "./types.ts";
-import { JUDGES, getJudge, listJudgeIds, type Judge } from "./judges.ts";
+import { JUDGES, getJudge, listJudgeIds, type Judge } from "./judges/index.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATASETS_DIR = join(__dirname, "datasets");

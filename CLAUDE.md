@@ -33,7 +33,7 @@ This is the only check that costs money and isn't deterministic, so don't loop o
 ## Code conventions
 
 - **Prompts are externalized YAML.** Each variant is `src/prompts/<id>.yaml` and is auto-discovered by `src/prompts/index.ts`. Add a new YAML file to add a new prompt — no registration step. The CLI and the eval suite both consume this registry; never duplicate prompt strings elsewhere.
-- **LLM judge rubrics are externalized YAML.** Each LLM judge has a YAML file under `evals/judges/` carrying its `systemPrompt`. Code in `evals/judges.ts` constructs the user message and parses the JSON response. Heuristic judges (e.g. citation) stay code-only.
+- **LLM judge rubrics are externalized YAML.** LLM judges live under `evals/judges/llm/` as a paired `<id>.yaml` (rubric) + `<id>.ts` (user-message construction). Deterministic judges live under `evals/judges/deterministic/` as code-only `<id>.ts`. The registry at `evals/judges/index.ts` imports both and exposes `JUDGES`, `getJudge`, `listJudgeIds`. Shared types and the LLM-call plumbing live in `evals/judges/shared.ts`.
 - **Datasets are externalized JSON.** Each dataset is `evals/datasets/<id>.json` and is auto-discovered by `evals/registry.ts`. Each item: `{id, question, gold?, notes?}`.
 - **Artifact hashes get recorded per run.** Every prompt YAML, judge YAML, and dataset JSON has a 12-hex-char SHA-256 fingerprint computed at load time. The eval CLI writes these into `report-<ts>.json` under `artifacts.{prompts,judges,datasets}` so a run is pinned to specific artifact versions even if the files later change.
 - **Agent stays prompt-agnostic.** `src/agent.ts` accepts a `PromptConfig` via options. Don't embed system prompts or tool schemas in `agent.ts`.

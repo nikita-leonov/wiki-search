@@ -8,7 +8,7 @@ import {
   type Judge,
   type PromptConfig,
 } from "./registry.ts";
-import { countCitations } from "./judges.ts";
+import { countCitations } from "./judges/index.ts";
 import type {
   DatasetItem,
   EvalRow,

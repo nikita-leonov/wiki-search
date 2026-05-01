@@ -86,8 +86,10 @@ npm run eval > evals/runs/last-report.md
 Adding a new prompt, dataset, or judge:
 - **Prompt**: drop a `<id>.yaml` file under `src/prompts/`. It's auto-discovered. The YAML carries `id`, `description`, `systemPrompt`, and the full `tool` schema.
 - **Dataset**: drop an `<id>.json` file under `evals/datasets/`. Auto-discovered. Format: `{ "id": "...", "description": "...", "items": [{"id": "...", "question": "...", "gold": "..." (optional), "notes": "..." (optional)}, ...] }`.
-- **LLM judge**: drop a `<id>.yaml` rubric under `evals/judges/`, then wire a small piece of code in `evals/judges.ts` that builds the user-message (since each judge needs different inputs from the row) and registers it in `JUDGES`.
-- **Heuristic judge** (e.g. citation): pure code in `evals/judges.ts`; no YAML.
+- **LLM judge**: under `evals/judges/llm/`, drop a `<id>.yaml` rubric and a `<id>.ts` that builds the user message (each judge needs different inputs from the row), then add it to `JUDGES` in `evals/judges/index.ts`.
+- **Deterministic judge** (e.g. citation): pure code in `evals/judges/deterministic/<id>.ts`; no YAML.
+
+If you have past `report-*.json` files generated before artifact hashing was added, run `npm run backfill:hashes` to populate the `artifacts` block in place. Hashes are computed from the *current* artifact files, so the back-fill only matches historical state if the artifacts haven't been edited since.
 
 Every YAML / JSON artifact gets a SHA-256 short-fingerprint at load time, recorded in `report-<ts>.json` under `artifacts.{prompts,judges,datasets}` so each run is pinned to the exact versions it consumed.
 
@@ -116,8 +118,11 @@ evals/
   runner.ts           Matrix orchestration, concurrency, live progress
   reports.ts          Aggregation + three rotating-primary-key text reports
   registry.ts         Resolves prompt / dataset / judge ids; auto-discovers JSON datasets
-  judges/             LLM-judge rubric YAML files (correctness, groundedness)
-  judges.ts           Citation (heuristic, code-only) + LLM judge wiring
+  judges/
+    index.ts          Judge registry — imports llm/* and deterministic/*
+    shared.ts         Judge types + LLM-call plumbing
+    llm/              LLM-backed judges: paired <id>.yaml (rubric) + <id>.ts (wiring)
+    deterministic/    Code-only judges (e.g. citation)
   cost.ts             Per-model price table + cost estimation
   types.ts            Shared eval types
   config.json         Default eval matrix
