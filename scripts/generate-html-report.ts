@@ -337,38 +337,37 @@ function reportQualifies(cohort, report) {
   return true;
 }
 
-function rawValuesFor(cohort, metricId) {
+// One data point = one iteration sweep over the cohort's matching items
+// (i.e. the mean of every qualifying row in a single (report, iterationIdx)
+// group). Walks reports newest-first and, within each report, iterations in
+// descending iterationIdx; stops at MAX_POINTS data points.
+function generateSeries(cohort, metricId) {
   const metric = METRICS.find(m => m.id === metricId);
   if (!metric) return [];
   const promptLabel = parseOptionId(cohort.prompt).label;
   const datasetLabel = parseOptionId(cohort.dataset).label;
   const judgeLabel = parseOptionId(cohort.judge).label;
-  const values = [];
+
+  const points = [];
   for (const r of REPORTS) {
     if (!reportQualifies(cohort, r)) continue;
+    const byIter = new Map();
     for (const row of r.rows || []) {
       if (cohort.prompt != null && row.promptId !== promptLabel) continue;
       if (cohort.dataset != null && row.datasetId !== datasetLabel) continue;
-      const v = metric.compute([row], judgeLabel);
-      if (Number.isFinite(v)) values.push(v);
+      const it = row.iterationIdx ?? 0;
+      let arr = byIter.get(it);
+      if (!arr) { arr = []; byIter.set(it, arr); }
+      arr.push(row);
+    }
+    const iters = [...byIter.keys()].sort((a, b) => b - a);
+    for (const it of iters) {
+      if (points.length >= MAX_POINTS) return points;
+      const v = metric.compute(byIter.get(it), judgeLabel);
+      if (Number.isFinite(v)) points.push(v);
     }
   }
-  return values;
-}
-
-function bucketRawValues(values, sampleSize) {
-  const out = [];
-  for (let i = 0; i < values.length && out.length < MAX_POINTS; i += sampleSize) {
-    const bucket = values.slice(i, i + sampleSize);
-    if (!bucket.length) break;
-    out.push(bucket.reduce((a, b) => a + b, 0) / bucket.length);
-  }
-  return out;
-}
-
-function generateSeries(cohort, metricId, sampleSize) {
-  const raw = rawValuesFor(cohort, metricId);
-  return bucketRawValues(raw, Math.max(1, sampleSize));
+  return points;
 }
 
 window.EvalData = { REPORTS, PROMPTS, DATASETS, JUDGES, METRICS, MAX_POINTS, generateSeries, parseOptionId };
@@ -468,21 +467,6 @@ function SectionLabel({ children, info }) {
   );
 }
 
-function NumberInput({ value, onChange, min, max, step = 1, width = 64 }) {
-  return (
-    <input type="number" value={value} min={min} max={max} step={step}
-      onChange={e => onChange(Math.max(min ?? -Infinity, Math.min(max ?? Infinity, Number(e.target.value) || 0)))}
-      style={{
-        height: 26, width, border: '1px solid var(--border)', borderRadius: 6,
-        padding: '0 8px', fontFamily: 'inherit', fontSize: 13,
-        color: 'var(--text)', background: 'var(--panel)', outline: 'none',
-      }}
-      onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-      onBlur={e => e.target.style.borderColor = 'var(--border)'}
-    />
-  );
-}
-
 const styleEl = document.createElement('style');
 styleEl.textContent = \`
   @keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -492,7 +476,7 @@ styleEl.textContent = \`
 \`;
 document.head.appendChild(styleEl);
 
-Object.assign(window, { Popover, InfoTip, SectionLabel, NumberInput, chipBase });
+Object.assign(window, { Popover, InfoTip, SectionLabel, chipBase });
 </script>
 
 <script type="text/babel" data-presets="react">
@@ -720,7 +704,7 @@ function AddCohortButton({ onClick }) {
 }
 
 function Toolbar({ state, dispatch }) {
-  const { sampleSize, metric, cohorts } = state;
+  const { metric, cohorts } = state;
   const cohortColors = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)'];
   const base = cohorts[0];
   const pinnedDims = ['prompt', 'dataset', 'judge'].filter(k => base[k] != null);
@@ -731,14 +715,9 @@ function Toolbar({ state, dispatch }) {
       flexWrap: 'wrap', rowGap: 10,
     }}>
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <SectionLabel info="Each chart point is the mean of sample-size consecutive raw values, gathered newest-first across qualifying reports. 1 = individual values; up to 25 points are shown per cohort.">
-          Sample
+        <SectionLabel info="Each data point is the mean of one full iteration sweep over the cohort's matching items (one (report, iteration) group). Up to 25 points are shown per cohort, newest-first across qualifying reports.">
+          Metric
         </SectionLabel>
-        <NumberInput value={sampleSize} onChange={v => dispatch({ type: 'setSampleSize', value: v })} min={1} max={50} width={56} />
-      </div>
-      <Divider />
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <SectionLabel>Metric</SectionLabel>
         <MetricSelect value={metric} onChange={v => dispatch({ type: 'setMetric', value: v })} />
       </div>
       <Divider />
@@ -784,7 +763,7 @@ function fmt(v, unit) {
 }
 
 function Chart({ state }) {
-  const { metric, cohorts, sampleSize } = state;
+  const { metric, cohorts } = state;
   const { METRICS, generateSeries, PROMPTS, DATASETS, JUDGES, MAX_POINTS } = window.EvalData;
   const metricDef = METRICS.find(m => m.id === metric);
   const [hoverIdx, setHoverIdx] = useStateC(null);
@@ -817,9 +796,9 @@ function Chart({ state }) {
       id: c._id,
       color: cohortColors[i % cohortColors.length],
       cohort: c,
-      points: generateSeries(c, metric, sampleSize),
+      points: generateSeries(c, metric),
     }));
-  }, [cohorts, metric, sampleSize]);
+  }, [cohorts, metric]);
 
   const longest = Math.max(0, ...series.map(s => s.points.length));
   const N = Math.max(1, longest);
@@ -888,7 +867,7 @@ function Chart({ state }) {
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em' }}>{metricDef.label}</h2>
           <span className="mono" style={{ fontSize: 12, color: 'var(--text-faint)' }}>
-            {metricDef.unit} · {sampleSize === 1 ? 'individual values' : \`mean of \${sampleSize}\`} · longest {longest}/\${MAX_POINTS} pts
+            {metricDef.unit} · iteration sweep · longest {longest}/\${MAX_POINTS} pts
           </span>
         </div>
       </div>
@@ -916,7 +895,7 @@ function Chart({ state }) {
             <text x={padding.left + innerW / 2} y={H - padding.bottom + 38} textAnchor="middle"
               fontSize="10" fill="var(--text-faint)" fontFamily="Inter"
               style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              data point (newest-first, sample-size mean)
+              iteration sweep (newest-first; one point = one iteration's mean across items)
             </text>
             <text x={-(padding.top + innerH / 2)} y={16} transform="rotate(-90)" textAnchor="middle"
               fontSize="10" fill="var(--text-faint)" fontFamily="Inter"
@@ -1012,7 +991,6 @@ function pickInitialCohorts() {
 }
 
 const INITIAL = {
-  sampleSize: 1,
   metric: 'meanScore',
   cohorts: pickInitialCohorts(),
   _nextId: 3,
@@ -1032,7 +1010,6 @@ function reshapeCohorts(cohorts) {
 
 function reducer(state, action) {
   switch (action.type) {
-    case 'setSampleSize': return { ...state, sampleSize: action.value };
     case 'setMetric': return { ...state, metric: action.value };
     case 'updateCohort': {
       const cohorts = state.cohorts.map(c => c._id === action.id ? { ...action.cohort, _id: c._id } : c);
