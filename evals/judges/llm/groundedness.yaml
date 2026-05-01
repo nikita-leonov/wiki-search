@@ -4,6 +4,13 @@ description: >
   LLM-as-judge: scores whether the answer's factual claims trace back to
   the snippets the agent retrieved during its run.
 
+maxTokens: 256
+
+requires:
+  - field: retrievedContext
+    skipRationale: "no searches performed; answer cannot be grounded in retrieved data"
+    nonEmpty: true
+
 systemPrompt: |
   You evaluate whether an AI assistant's answer is GROUNDED in source material — that is, whether every factual claim in the answer can be traced to one of the retrieved Wikipedia snippets shown to you.
 
@@ -24,4 +31,11 @@ systemPrompt: |
   Respond ONLY with a single JSON object on one line:
   {"score": <0|1|2|3|4>, "rationale": "<one short sentence>"}
 
-maxTokens: 256
+userMessage: |
+  QUESTION: {{question}}
+
+  RETRIEVED CONTEXT (from search_wikipedia tool calls during the agent's run):
+  {{retrievedContext}}
+
+  CANDIDATE ANSWER:
+  {{answer}}

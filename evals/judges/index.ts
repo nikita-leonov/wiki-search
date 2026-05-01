@@ -1,21 +1,44 @@
-// Public registry for all judges. Imports concrete judges from llm/ and
-// deterministic/ subfolders and exposes them by id. This file is what
-// callers (runner, registry, tests) import from.
+// Public registry for all judges.
+//
+// LLM judges are auto-discovered from YAML rubrics under ./llm/. Each YAML
+// is converted to a Judge by makeLlmJudge(), so adding a new LLM judge is a
+// pure-data change: drop a <id>.yaml in ./llm/.
+//
+// Deterministic judges live as TS files under ./deterministic/ and are
+// imported explicitly here.
+
+import { readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { citationJudge, countCitations } from "./deterministic/citation.ts";
-import { correctnessJudge } from "./llm/correctness.ts";
 import {
   formatRetrievedContext,
-  groundednessJudge,
-} from "./llm/groundedness.ts";
+  loadRubric,
+  makeLlmJudge,
+  parseJudgeJson,
+  type Judge,
+} from "./shared.ts";
 
-import type { Judge } from "./shared.ts";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const LLM_DIR = join(__dirname, "llm");
 
-export const JUDGES: Record<string, Judge> = {
-  correctness: correctnessJudge,
-  citation: citationJudge,
-  groundedness: groundednessJudge,
-};
+function discoverLlmJudges(): Judge[] {
+  const files = readdirSync(LLM_DIR).filter(
+    (f) => f.endsWith(".yaml") || f.endsWith(".yml"),
+  );
+  return files.map((f) => makeLlmJudge(loadRubric(join(LLM_DIR, f))));
+}
+
+const allJudges: Judge[] = [...discoverLlmJudges(), citationJudge];
+
+export const JUDGES: Record<string, Judge> = {};
+for (const j of allJudges) {
+  if (JUDGES[j.id]) {
+    throw new Error(`duplicate judge id "${j.id}"`);
+  }
+  JUDGES[j.id] = j;
+}
 
 export function getJudge(id: string): Judge {
   const j = JUDGES[id];
@@ -31,8 +54,6 @@ export function listJudgeIds(): string[] {
   return Object.keys(JUDGES);
 }
 
-// Re-exports so callers can pull everything they need from one path.
 export type { Judge, JudgeContext, JudgeFn } from "./shared.ts";
-export { parseJudgeJson } from "./shared.ts";
+export { parseJudgeJson, formatRetrievedContext };
 export { countCitations };
-export { formatRetrievedContext };

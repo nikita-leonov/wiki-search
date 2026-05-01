@@ -4,6 +4,12 @@ description: >
   LLM-as-judge: scores a candidate against the dataset's gold answer on a
   0–4 factual-correctness rubric.
 
+maxTokens: 256
+
+requires:
+  - field: gold
+    skipRationale: "no gold answer in dataset; correctness judge skipped"
+
 systemPrompt: |
   You evaluate whether an AI assistant's answer to a question is factually correct, using a reference "gold" answer as ground truth.
 
@@ -19,4 +25,11 @@ systemPrompt: |
   Respond ONLY with a single JSON object on one line:
   {"score": <0|1|2|3|4>, "rationale": "<one short sentence>"}
 
-maxTokens: 256
+userMessage: |
+  QUESTION: {{question}}
+
+  GOLD ANSWER: {{gold}}
+  {{#notes}}DATASET NOTES: {{notes}}{{/notes}}
+
+  CANDIDATE ANSWER:
+  {{answer}}

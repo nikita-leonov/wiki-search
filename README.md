@@ -111,8 +111,8 @@ The X-axis is always the run timestamps (oldest → newest), so each cohort rend
 Adding a new prompt, dataset, or judge:
 - **Prompt**: drop a `<id>.yaml` file under `src/prompts/`. It's auto-discovered. The YAML carries `id`, `description`, `systemPrompt`, and the full `tool` schema.
 - **Dataset**: drop an `<id>.json` file under `evals/datasets/`. Auto-discovered. Format: `{ "id": "...", "description": "...", "items": [{"id": "...", "question": "...", "gold": "..." (optional), "notes": "..." (optional)}, ...] }`.
-- **LLM judge**: under `evals/judges/llm/`, drop a `<id>.yaml` rubric and a `<id>.ts` that builds the user message (each judge needs different inputs from the row), then add it to `JUDGES` in `evals/judges/index.ts`.
-- **Deterministic judge** (e.g. citation): pure code in `evals/judges/deterministic/<id>.ts`; no YAML.
+- **LLM judge**: drop a `<id>.yaml` rubric under `evals/judges/llm/`. The YAML carries `id`, `description`, `systemPrompt`, `userMessage` (template with `{{question}}` / `{{answer}}` / `{{gold}}` / `{{notes}}` / `{{retrievedContext}}` substitutions and `{{#field}}…{{/field}}` conditional sections), `maxTokens`, and an optional `requires` list that short-circuits the judge with a custom rationale when a needed field is absent. Auto-discovered — no code change needed.
+- **Deterministic judge** (e.g. citation): pure code in `evals/judges/deterministic/<id>.ts`, registered explicitly in `evals/judges/index.ts`.
 
 Every YAML / JSON artifact gets a SHA-256 short-fingerprint at load time, recorded in `report-<ts>.json` under `artifacts.{prompts,judges,datasets}` so each run is pinned to the exact versions it consumed.
 

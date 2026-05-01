@@ -48,4 +48,31 @@ describe("judge registry", () => {
     assert.match(JUDGES.groundedness!.hash ?? "", /^[0-9a-f]{12}$/);
     assert.equal(JUDGES.citation!.hash, undefined);
   });
+
+  test("correctness skips (no API call) when gold is absent", async () => {
+    const score = await getJudge("correctness").judge({
+      question: "q",
+      answer: "a",
+      apiKey: "irrelevant",
+      judgeModel: "irrelevant",
+    });
+    assert.equal(score.score, 0);
+    assert.equal(score.pass, false);
+    assert.match(score.rationale ?? "", /no gold answer/);
+    assert.equal(score.usage, undefined);
+  });
+
+  test("groundedness skips (no API call) when retrievedContext is empty", async () => {
+    const score = await getJudge("groundedness").judge({
+      question: "q",
+      answer: "a",
+      retrievedContext: [],
+      apiKey: "irrelevant",
+      judgeModel: "irrelevant",
+    });
+    assert.equal(score.score, 0);
+    assert.equal(score.pass, false);
+    assert.match(score.rationale ?? "", /no searches performed/);
+    assert.equal(score.usage, undefined);
+  });
 });
