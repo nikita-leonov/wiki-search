@@ -88,6 +88,23 @@ The full rendered report (overall summary + the three rotating-primary-key repor
 npm run eval > evals/runs/last-report.md
 ```
 
+### Interactive HTML comparison
+
+For ad-hoc cohort comparisons (e.g. "is v0 better than v1 by groundedness across all datasets, or only on the unanswerable set?"), generate a self-contained HTML page from any `report-<ts>.json`:
+
+```bash
+npm run report:html -- evals/runs/report-2026-05-01T....json
+# → writes report-2026-05-01T....html next to the JSON
+```
+
+The page (Chart.js loaded from CDN, all data embedded) lets you:
+
+- Pick a **Vary by** axis (dataset / prompt / judge) — this becomes the X-axis.
+- Add **cohorts**: each pins values for the other two dimensions (so cohorts are always commensurable; you can't compare e.g. a `prompt+dataset` cohort against a `judge+dataset` one).
+- Pick **metrics**: mean score, pass rate, p50/p95 latency, mean tokens, mean searches, mean cost, error rate. Each picked metric gets its own chart, all sharing the same cohort lines.
+
+Changing **Vary by** clears the cohort list (the shape changed). `retrievedContext` is stripped from the embedded data to keep the HTML small.
+
 Adding a new prompt, dataset, or judge:
 - **Prompt**: drop a `<id>.yaml` file under `src/prompts/`. It's auto-discovered. The YAML carries `id`, `description`, `systemPrompt`, and the full `tool` schema.
 - **Dataset**: drop an `<id>.json` file under `evals/datasets/`. Auto-discovered. Format: `{ "id": "...", "description": "...", "items": [{"id": "...", "question": "...", "gold": "..." (optional), "notes": "..." (optional)}, ...] }`.
