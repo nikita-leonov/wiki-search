@@ -14,8 +14,9 @@
 //         Y is the mean of the matching rows across all qualifying reports.
 //       - "Per item":      each item id is one X position; Y is the mean of
 //         all matching rows for that item across reports.
-//   • Multiple metrics → multiple charts; each shares the same cohort lines
-//     and the same X-axis (the union of positions seen across cohorts).
+//   • A single metric is selected via dropdown; the chart updates
+//     immediately. (Multi-metric overlays were removed — one chart at a
+//     time keeps the comparison reading uncluttered.)
 
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
@@ -230,10 +231,6 @@ function buildHtml(reports: SlimReport[]): string {
     background: #fee2e2;
     border: 1px solid #fca5a5;
   }
-  .metric-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 6px 16px;
-  }
   .chart-card { padding: 12px 0; }
   .chart-card h3 { margin: 0 0 8px 0; font-size: 13px; color: var(--muted); }
   canvas { max-height: 360px; }
@@ -271,12 +268,12 @@ function buildHtml(reports: SlimReport[]): string {
   </section>
 
   <section>
-    <h2>Metrics</h2>
-    <div id="metrics" class="metric-grid"></div>
+    <h2>Metric</h2>
+    <label>Show: <select id="metric"></select></label>
   </section>
 
   <section>
-    <h2>Charts</h2>
+    <h2>Chart</h2>
     <div id="charts"></div>
   </section>
 </main>
@@ -420,7 +417,7 @@ function buildHtml(reports: SlimReport[]): string {
     pin: { promptId: true, datasetId: true, judgeId: true },
     sampleSize: 1,
     cohorts: [], // { id, promptId?, promptHash?, datasetId?, datasetHash?, judgeId?, judgeHash? }
-    metrics: ["meanScore"],
+    metric: "meanScore",
     nextCohortId: 1,
   };
 
@@ -595,44 +592,42 @@ function buildHtml(reports: SlimReport[]): string {
   }
 
   function renderMetricPicker() {
-    const container = document.getElementById("metrics");
-    container.innerHTML = "";
+    const select = document.getElementById("metric");
+    select.innerHTML = "";
     Object.entries(METRICS).forEach(([key, def]) => {
-      const wrap = document.createElement("label");
-      const checked = state.metrics.includes(key) ? "checked" : "";
-      wrap.innerHTML = '<input type="checkbox" ' + checked + '> ' + escapeHtml(def.label);
-      wrap.querySelector("input").addEventListener("change", e => {
-        if (e.target.checked) state.metrics.push(key);
-        else state.metrics = state.metrics.filter(k => k !== key);
-        renderCharts();
-      });
-      container.appendChild(wrap);
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = def.label;
+      if (key === state.metric) opt.selected = true;
+      select.appendChild(opt);
+    });
+    select.addEventListener("change", (e) => {
+      state.metric = e.target.value;
+      renderCharts();
     });
   }
 
-  const charts = new Map();
-  function destroyAllCharts() {
-    for (const ch of charts.values()) ch.destroy();
-    charts.clear();
+  let chartInstance = null;
+  function destroyChart() {
+    if (chartInstance) {
+      chartInstance.destroy();
+      chartInstance = null;
+    }
   }
 
   function renderCharts() {
     const container = document.getElementById("charts");
     if (!state.cohorts.length) {
-      container.innerHTML = '<div class="empty">Add at least one cohort to see charts.</div>';
-      destroyAllCharts();
-      return;
-    }
-    if (!state.metrics.length) {
-      container.innerHTML = '<div class="empty">Pick at least one metric.</div>';
-      destroyAllCharts();
+      container.innerHTML = '<div class="empty">Add at least one cohort to see the chart.</div>';
+      destroyChart();
       return;
     }
 
     container.innerHTML = "";
-    destroyAllCharts();
+    destroyChart();
 
-    state.metrics.forEach(metricKey => {
+    const metricKey = state.metric;
+    {
       // For each cohort, get an array of bucketed data points (newest-first,
       // capped at MAX_POINTS). Cohorts may have different lengths; that's
       // fine — Chart.js renders only as many points as each dataset has,
@@ -701,8 +696,8 @@ function buildHtml(reports: SlimReport[]): string {
           },
         },
       });
-      charts.set(metricKey, ch);
-    });
+      chartInstance = ch;
+    }
   }
 
   function escapeHtml(s) {

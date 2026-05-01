@@ -108,7 +108,7 @@ How it works:
 - For each pinned dim, the cohort dropdown lists `id (hash)` options. The **hash makes cohorts hash-aware**: data from a report only counts toward a cohort if the report's artifact hash for that pinned id matches. So measurements accumulate across runs only when the pinned artifacts are byte-identical.
 - **Sample size** picker: each chart point is the mean of N consecutive raw metric values (newest-first). `1` = each iteration is its own point; `3` = each point is the mean of 3 consecutive iterations (e.g., one full set of iterations for a single item under default config); larger values give coarser-but-smoother points.
 - The chart shows **at most 25 points**. If a cohort has fewer raw values, its line ends naturally where the data does — it is not padded to match longer cohorts.
-- **Metrics** (multi-select): mean score, pass rate, p50/p95 latency, mean tokens, mean searches, mean cost, error rate. Each metric gets its own chart, all sharing the same cohort lines.
+- **Metric** (single dropdown): mean score, pass rate, p50/p95 latency, mean tokens, mean searches, mean cost, error rate. Switching metric updates the chart in place — keeps the cohort comparison reading uncluttered.
 
 Newest-first collection means: walking the loaded reports from most-recent runAt down, append every matching iteration's metric value to a flat list, then bucket the first `sampleSize × 25` of that list into the chart's points. Reports that don't pass the hash gate contribute zero values.
 
