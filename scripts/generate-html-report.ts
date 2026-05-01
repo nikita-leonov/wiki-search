@@ -246,12 +246,9 @@ function buildHtml(reports: SlimReport[]): string {
   </section>
 
   <section>
-    <h2>Granularity</h2>
-    <div class="row-controls" id="granularity-controls">
-      <label><input type="radio" name="granularity" value="iteration" checked> Per <strong>iteration</strong> (each item × iter is one point)</label>
-      <label><input type="radio" name="granularity" value="item"> Per <strong>item</strong> (mean of iterations)</label>
-    </div>
-    <div class="footnote">Each X position aggregates all matching rows across qualifying reports as a mean.</div>
+    <h2>Sampling</h2>
+    <label>Sample size: <input id="sample-size" type="number" min="1" value="1" style="width: 80px"></label>
+    <div class="footnote">Each chart point is the mean of <em>sample size</em> consecutive raw metric values, gathered newest-first across qualifying reports. <strong>1</strong> = individual values (no aggregation). Up to 25 points are shown; with less data, each cohort's line simply ends where its data does — it is not extended to match longer cohorts.</div>
   </section>
 
   <section>
@@ -405,9 +402,10 @@ function buildHtml(reports: SlimReport[]): string {
   // ──────────────────────────────────────────────────────────────────────────
   // State
   // ──────────────────────────────────────────────────────────────────────────
+  const MAX_POINTS = 25;
   const state = {
     pin: { promptId: true, datasetId: true, judgeId: true },
-    granularity: "iteration",
+    sampleSize: 1,
     cohorts: [], // { id, promptId?, promptHash?, datasetId?, datasetHash?, judgeId?, judgeHash? }
     metrics: ["meanScore"],
     nextCohortId: 1,
@@ -443,56 +441,48 @@ function buildHtml(reports: SlimReport[]): string {
     return true;
   }
 
-  function rowsFor(cohort) {
-    const rows = [];
+  // ──────────────────────────────────────────────────────────────────────────
+  // Raw per-row metric values for a cohort. Walks reports newest-first
+  // (REPORTS is sorted runAt-desc), filters rows by the cohort's pinned ids,
+  // and excludes whole reports whose artifact hash for any pinned dim does
+  // not match. Each surviving row contributes a single per-row metric value.
+  // ──────────────────────────────────────────────────────────────────────────
+  function rawValuesFor(cohort, metricKey) {
+    const judgeId = state.pin.judgeId ? cohort.judgeId : null;
+    const values = [];
     for (const r of REPORTS) {
       if (!reportQualifies(cohort, r)) continue;
       for (const row of (r.rows || [])) {
         if (state.pin.promptId && cohort.promptId != null && row.promptId !== cohort.promptId) continue;
         if (state.pin.datasetId && cohort.datasetId != null && row.datasetId !== cohort.datasetId) continue;
-        // judgeId never excludes rows (it filters scores in metric calc)
-        rows.push(row);
+        const v = METRICS[metricKey].compute([row], judgeId);
+        if (Number.isFinite(v)) values.push(v);
       }
     }
-    return rows;
+    return values;
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Build (label → mean Y) per cohort according to granularity. Returns:
-  //   { positions: string[], byPosition: Map<position, value|null> }
+  // Bucket raw values into mean-of-N groups starting from the newest. Returns
+  // up to MAX_POINTS data points. The last bucket may be partial when raw
+  // values run out — we still include its mean so cohorts with short data
+  // produce a short line rather than nothing at all.
   // ──────────────────────────────────────────────────────────────────────────
+  function bucketRawValues(rawValues, sampleSize) {
+    const points = [];
+    const limit = MAX_POINTS;
+    for (let i = 0; i < rawValues.length && points.length < limit; i += sampleSize) {
+      const bucket = rawValues.slice(i, i + sampleSize);
+      if (bucket.length === 0) break;
+      const sum = bucket.reduce((a, b) => a + b, 0);
+      points.push(sum / bucket.length);
+    }
+    return points;
+  }
+
   function dataPointsFor(cohort, metricKey) {
-    const rows = rowsFor(cohort);
-    const judgeId = state.pin.judgeId ? cohort.judgeId : null;
-
-    const groups = new Map();
-    for (const row of rows) {
-      const key = state.granularity === "iteration"
-        ? row.itemId + " #" + (row.iterationIdx + 1)
-        : row.itemId;
-      let arr = groups.get(key);
-      if (!arr) { arr = []; groups.set(key, arr); }
-      arr.push(row);
-    }
-
-    const byPosition = new Map();
-    for (const [pos, groupRows] of groups) {
-      const v = METRICS[metricKey].compute(groupRows, judgeId);
-      byPosition.set(pos, Number.isFinite(v) ? v : null);
-    }
-    return { positions: Array.from(groups.keys()), byPosition };
-  }
-
-  // Sort key for positions: by item id (string), then by iteration number if present.
-  function positionSortKey(pos) {
-    const m = pos.match(/^(.+?) #(\\d+)$/);
-    if (m) return [m[1], parseInt(m[2], 10)];
-    return [pos, 0];
-  }
-  function comparePositions(a, b) {
-    const [ai, ax] = positionSortKey(a);
-    const [bi, bx] = positionSortKey(b);
-    return ai.localeCompare(bi) || ax - bx;
+    const raw = rawValuesFor(cohort, metricKey);
+    return bucketRawValues(raw, Math.max(1, state.sampleSize));
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -608,43 +598,48 @@ function buildHtml(reports: SlimReport[]): string {
     destroyAllCharts();
 
     state.metrics.forEach(metricKey => {
-      // Compute each cohort's (position → value) map.
-      const cohortData = state.cohorts.map((cohort) => dataPointsFor(cohort, metricKey));
-
-      // X-axis = union of positions across cohorts, sorted.
-      const positionSet = new Set();
-      cohortData.forEach(d => d.positions.forEach(p => positionSet.add(p)));
-      const labels = Array.from(positionSet).sort(comparePositions);
+      // For each cohort, get an array of bucketed data points (newest-first,
+      // capped at MAX_POINTS). Cohorts may have different lengths; that's
+      // fine — Chart.js renders only as many points as each dataset has,
+      // so a short cohort line ends naturally without being padded.
+      const cohortPoints = state.cohorts.map((c) => dataPointsFor(c, metricKey));
+      const longest = Math.max(0, ...cohortPoints.map((p) => p.length));
 
       const card = document.createElement("div");
       card.className = "chart-card";
       const title = document.createElement("h3");
-      title.textContent = METRICS[metricKey].label + " · " +
-        (state.granularity === "iteration" ? "per iteration" : "per item") +
-        " (n=" + labels.length + ")";
+      const sampleNote = state.sampleSize > 1
+        ? "sample size " + state.sampleSize
+        : "individual values";
+      title.textContent = METRICS[metricKey].label + " · " + sampleNote +
+        " · longest cohort: " + longest + " pt" + (longest === 1 ? "" : "s") +
+        " (capped at " + MAX_POINTS + ")";
       card.appendChild(title);
       const canvas = document.createElement("canvas");
       card.appendChild(canvas);
       container.appendChild(card);
 
-      if (labels.length === 0) {
+      if (longest === 0) {
         const note = document.createElement("div");
         note.className = "empty";
-        note.textContent = "No matching data for this metric.";
+        note.textContent = "No matching data for this metric — pinned hashes may filter all reports out, or no rows exist for the chosen cohort.";
         card.appendChild(note);
         return;
       }
 
+      // X-axis labels are just numeric indices. Run order / item ids do not
+      // appear; each X position is "the Nth (newest-first) bucketed value".
+      const labels = Array.from({ length: longest }, (_, i) => String(i + 1));
+
       const datasets = state.cohorts.map((cohort, idx) => {
-        const data = labels.map(p => cohortData[idx].byPosition.has(p) ? cohortData[idx].byPosition.get(p) : null);
         const color = cohortColor(idx);
         return {
-          label: cohortLabel(cohort),
-          data,
+          label: cohortLabel(cohort) + " (" + cohortPoints[idx].length + " pt" + (cohortPoints[idx].length === 1 ? "" : "s") + ")",
+          data: cohortPoints[idx], // intentionally length-N (not padded with nulls)
           borderColor: color,
           backgroundColor: color + "33",
           tension: 0.15,
-          spanGaps: true,
+          spanGaps: false,
         };
       });
 
@@ -659,8 +654,13 @@ function buildHtml(reports: SlimReport[]): string {
           },
           scales: {
             x: {
-              title: { display: true, text: state.granularity === "iteration" ? "Item × iteration" : "Item" },
-              ticks: { autoSkip: true, maxRotation: 60, minRotation: 30 },
+              title: {
+                display: true,
+                text: state.sampleSize > 1
+                  ? "Data point (mean of " + state.sampleSize + ", newest-first)"
+                  : "Data point (newest-first)",
+              },
+              ticks: { autoSkip: true, maxRotation: 0, minRotation: 0 },
             },
             y: { title: { display: true, text: METRICS[metricKey].label }, beginAtZero: true },
           },
@@ -685,13 +685,11 @@ function buildHtml(reports: SlimReport[]): string {
       renderCharts();
     });
   });
-  document.querySelectorAll('#granularity-controls input[type="radio"]').forEach(rb => {
-    rb.addEventListener("change", e => {
-      if (e.target.checked) {
-        state.granularity = e.target.value;
-        renderCharts();
-      }
-    });
+  document.getElementById("sample-size").addEventListener("change", (e) => {
+    const n = Math.max(1, parseInt(e.target.value, 10) || 1);
+    state.sampleSize = n;
+    e.target.value = String(n);
+    renderCharts();
   });
   document.getElementById("add-cohort").addEventListener("click", () => {
     state.cohorts.push(newCohort());

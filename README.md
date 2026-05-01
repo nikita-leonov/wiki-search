@@ -100,16 +100,19 @@ npm run report:html
 npm run report:html -- evals/runs --limit 30 --out comparison.html
 ```
 
-The chart's X-axis is **data points**, not run timestamps — each X position is either a single (item × iteration) or a single item depending on the granularity picker. Run dates aren't surfaced.
+The chart's X-axis is **data point index**, not run timestamps or item ids — each X is the Nth bucketed metric value, gathered newest-first. Run dates aren't surfaced.
 
 How it works:
 
 - Toggle **Pin** checkboxes for prompt / dataset / judge — each cohort fixes the pinned dims; unpinned dims aggregate.
 - For each pinned dim, the cohort dropdown lists `id (hash)` options. The **hash makes cohorts hash-aware**: data from a report only counts toward a cohort if the report's artifact hash for that pinned id matches. So measurements accumulate across runs only when the pinned artifacts are byte-identical.
-- **Granularity**: "per iteration" (each item × iter is one X position) or "per item" (mean of iterations). Y at each position is the mean of all matching rows from all qualifying reports.
-- **Metrics** (multi-select): mean score, pass rate, p50/p95 latency, mean tokens, mean searches, mean cost, error rate. Each metric gets its own chart, all sharing the same cohort lines and X-axis.
+- **Sample size** picker: each chart point is the mean of N consecutive raw metric values (newest-first). `1` = each iteration is its own point; `3` = each point is the mean of 3 consecutive iterations (e.g., one full set of iterations for a single item under default config); larger values give coarser-but-smoother points.
+- The chart shows **at most 25 points**. If a cohort has fewer raw values, its line ends naturally where the data does — it is not padded to match longer cohorts.
+- **Metrics** (multi-select): mean score, pass rate, p50/p95 latency, mean tokens, mean searches, mean cost, error rate. Each metric gets its own chart, all sharing the same cohort lines.
 
-If you edit a prompt YAML and re-run, the new hash gives you a separate cohort option (`v1 (newhash)`) so you can compare old-v1 vs new-v1 directly without mixing them. Toggling the Pin checkboxes resets the cohort list (the shape changed).
+Newest-first collection means: walking the loaded reports from most-recent runAt down, append every matching iteration's metric value to a flat list, then bucket the first `sampleSize × 25` of that list into the chart's points. Reports that don't pass the hash gate contribute zero values.
+
+If you edit a prompt YAML and re-run, the new hash gives you a separate cohort option (`v1 (newhash)`) so you can compare old-v1 vs new-v1 directly without mixing them. Toggling Pin resets the cohort list (the shape changed).
 
 Adding a new prompt, dataset, or judge:
 - **Prompt**: drop a `<id>.yaml` file under `src/prompts/`. It's auto-discovered. The YAML carries `id`, `description`, `systemPrompt`, and the full `tool` schema.
