@@ -18,7 +18,6 @@ const baseUsage = {
   outputTokens: 50,
   thinkTokensApprox: 0,
   totalTokens: 150,
-  cacheHitRate: 0,
 };
 
 function makeRow(

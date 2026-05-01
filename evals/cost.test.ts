@@ -10,7 +10,6 @@ const ZERO_USAGE = {
   outputTokens: 0,
   thinkTokensApprox: 0,
   totalTokens: 0,
-  cacheHitRate: 0,
 };
 
 describe("cost estimation", () => {

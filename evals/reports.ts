@@ -19,7 +19,6 @@ export type Aggregate = {
   meanCacheReadTokens: number;
   meanCacheCreationTokens: number;
   meanThinkTokensApprox: number;
-  meanCacheHitRate: number;
   meanSearches: number;
   meanTurns: number;
   meanAnswerChars: number;
@@ -95,7 +94,6 @@ export function aggregate(rows: EvalRow[]): Aggregate {
     meanCacheReadTokens: mean(ok.map((r) => r.usage.cacheReadTokens)),
     meanCacheCreationTokens: mean(ok.map((r) => r.usage.cacheCreationTokens)),
     meanThinkTokensApprox: mean(ok.map((r) => r.usage.thinkTokensApprox)),
-    meanCacheHitRate: mean(ok.map((r) => r.usage.cacheHitRate)),
     meanSearches: mean(ok.map((r) => r.searches)),
     meanTurns: mean(ok.map((r) => r.turns)),
     meanAnswerChars: mean(ok.map((r) => r.answerChars)),
@@ -152,7 +150,6 @@ class AccumState {
   outputTokensSum = 0;
   thinkTokensApproxSum = 0;
   totalTokensSum = 0;
-  cacheHitRateSum = 0;
   searchesSum = 0;
   turnsSum = 0;
   answerCharsSum = 0;
@@ -199,7 +196,6 @@ class AccumState {
     this.outputTokensSum += row.usage.outputTokens;
     this.thinkTokensApproxSum += row.usage.thinkTokensApprox;
     this.totalTokensSum += row.usage.totalTokens;
-    this.cacheHitRateSum += row.usage.cacheHitRate;
     this.searchesSum += row.searches;
     this.turnsSum += row.turns;
     this.answerCharsSum += row.answerChars;
@@ -254,7 +250,6 @@ class AccumState {
       meanCacheReadTokens: safeDivOk(this.cacheReadTokensSum),
       meanCacheCreationTokens: safeDivOk(this.cacheCreationTokensSum),
       meanThinkTokensApprox: safeDivOk(this.thinkTokensApproxSum),
-      meanCacheHitRate: safeDivOk(this.cacheHitRateSum),
       meanSearches: safeDivOk(this.searchesSum),
       meanTurns: safeDivOk(this.turnsSum),
       meanAnswerChars: safeDivOk(this.answerCharsSum),
@@ -422,11 +417,6 @@ function fmtNum(n: number, digits = 2): string {
   return n.toFixed(digits);
 }
 
-function fmtPct(n: number): string {
-  if (!Number.isFinite(n)) return "—";
-  return `${(n * 100).toFixed(1)}%`;
-}
-
 function fmtCost(n: number): string {
   if (!Number.isFinite(n)) return "—";
   if (n < 0.01) return `$${n.toFixed(4)}`;
@@ -580,7 +570,6 @@ export function renderAllReports(
     `  latency:        ${fmtMs(overall.meanLatencyMs)} mean, ${fmtMs(overall.p50LatencyMs)} p50, ${fmtMs(overall.p95LatencyMs)} p95`,
   );
   lines.push(`  total tokens:   ${overall.totalTokens.toLocaleString()}`);
-  lines.push(`  cache hit rate: ${fmtPct(overall.meanCacheHitRate)}`);
   lines.push(`  searches/run:   ${fmtNum(overall.meanSearches, 2)}`);
   const agentPct =
     overall.totalCostUsd > 0

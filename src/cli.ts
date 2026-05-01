@@ -133,7 +133,7 @@ async function runOne(
   const u = result.usage;
   process.stdout.write(
     `\n— ${result.searches} search${result.searches === 1 ? "" : "es"}, ${result.turns} turn${result.turns === 1 ? "" : "s"}, stopped: ${result.stopped}\n` +
-      `  tokens: in=${u.inputTokens} cache_r=${u.cacheReadTokens} cache_w=${u.cacheCreationTokens} out=${u.outputTokens} think~${u.thinkTokensApprox} (total=${u.totalTokens}, cache_hit=${(u.cacheHitRate * 100).toFixed(1)}%)\n` +
+      `  tokens: in=${u.inputTokens} cache_r=${u.cacheReadTokens} cache_w=${u.cacheCreationTokens} out=${u.outputTokens} think~${u.thinkTokensApprox} (total=${u.totalTokens})\n` +
       `  latency: ${result.latencyMs}ms, answer: ${result.answerChars} chars\n`,
   );
 }

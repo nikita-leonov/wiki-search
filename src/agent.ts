@@ -40,7 +40,6 @@ export type TurnUsage = {
 
 export type AgentUsage = TurnUsage & {
   totalTokens: number;
-  cacheHitRate: number;
 };
 
 export type AgentResult = {
@@ -282,12 +281,6 @@ function finalize(args: {
   retrievedContext: RetrievedContext[];
 }): AgentResult {
   const { cumulative } = args;
-  const inputForCacheRate =
-    cumulative.inputTokens + cumulative.cacheReadTokens;
-  const cacheHitRate =
-    inputForCacheRate > 0
-      ? cumulative.cacheReadTokens / inputForCacheRate
-      : 0;
   const totalTokens =
     cumulative.inputTokens +
     cumulative.cacheReadTokens +
@@ -302,7 +295,6 @@ function finalize(args: {
     usage: {
       ...cumulative,
       totalTokens,
-      cacheHitRate,
     },
     latencyMs: Date.now() - args.startTime,
     retrievedContext: args.retrievedContext,

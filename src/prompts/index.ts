@@ -1,12 +1,14 @@
 import type { PromptConfig } from "./types.ts";
 import { v0 } from "./v0.ts";
 import { v1 } from "./v1.ts";
+import { v3 } from "./v3.ts";
 
 export type { PromptConfig } from "./types.ts";
 
 export const PROMPTS: Record<string, PromptConfig> = {
   v0,
   v1,
+  v3,
 };
 
 export const DEFAULT_PROMPT_ID = "v1";

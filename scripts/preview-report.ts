@@ -81,8 +81,6 @@ function syntheticRows(): EvalRow[] {
               outputTokens,
               thinkTokensApprox: 0,
               totalTokens: inputTokens + cacheReadTokens + outputTokens,
-              cacheHitRate:
-                cacheReadTokens / (inputTokens + cacheReadTokens || 1),
             },
             latencyMs: Math.round(800 + rng() * 3000),
             costUsd: 0.001 + rng() * 0.005,

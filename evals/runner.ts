@@ -58,7 +58,6 @@ const EMPTY_USAGE: AgentUsage = {
   outputTokens: 0,
   thinkTokensApprox: 0,
   totalTokens: 0,
-  cacheHitRate: 0,
 };
 
 async function runOneCell(
@@ -182,7 +181,7 @@ export class ProgressDisplay {
 
   update(row: EvalRow, completed: number): void {
     this.cumulativeTokens += row.usage.totalTokens;
-    this.cumulativeCost += row.costUsd;
+    this.cumulativeCost += row.costUsd + row.judgeCostUsd;
 
     const cell =
       `${row.promptId}/${row.datasetId}/${row.itemId} i${row.iterationIdx + 1}`.padEnd(
@@ -193,11 +192,18 @@ export class ProgressDisplay {
     const rate = completed / elapsedSec;
     const etaSec = rate > 0 ? Math.max(0, (this.total - completed) / rate) : 0;
 
-    const tokenParts = [`in:${u.inputTokens}`];
-    if (u.cacheReadTokens > 0) tokenParts.push(`cache:${u.cacheReadTokens}`);
-    tokenParts.push(`out:${u.outputTokens}`);
-    if (u.thinkTokensApprox > 0)
-      tokenParts.push(`think~${u.thinkTokensApprox}`);
+    // Per-iteration token sum (in + cache_read + out, plus cache_write/think
+    // when present — i.e. the row's totalTokens) and per-iteration price
+    // (agent + judges).
+    const iterTokens = u.totalTokens;
+    const iterCost = row.costUsd + row.judgeCostUsd;
+
+    // Optional break-down for nonzero cache / think — kept in parens to keep
+    // the line short on the common path where both are zero.
+    const extras: string[] = [];
+    if (u.cacheReadTokens > 0) extras.push(`cache:${u.cacheReadTokens}`);
+    if (u.thinkTokensApprox > 0) extras.push(`think~${u.thinkTokensApprox}`);
+    const extrasStr = extras.length > 0 ? ` (${extras.join(" ")})` : "";
 
     const judgeSummary =
       row.judgeScores.length > 0
@@ -212,7 +218,7 @@ export class ProgressDisplay {
 
     const line =
       `[${String(completed).padStart(String(this.total).length)}/${this.total}] ${cell}` +
-      ` | ${tokenParts.join(" ")}` +
+      ` | ${formatTokens(iterTokens)} ${formatCost(iterCost)}${extrasStr}` +
       ` | ${formatLatency(row.latencyMs)} | ${judgeSummary}${errMark}` +
       ` | Σ ${formatTokens(this.cumulativeTokens)} ${formatCost(this.cumulativeCost)}` +
       ` | ETA ${formatDuration(etaSec)}`;
