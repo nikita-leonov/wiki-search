@@ -1,7 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 import { searchWikipedia, type WikipediaHit } from "./wikipedia.ts";
-import { SEARCH_WIKIPEDIA_TOOL, SYSTEM_PROMPT } from "./prompts.ts";
+import {
+  DEFAULT_PROMPT_ID,
+  getPrompt,
+  type PromptConfig,
+} from "./prompts/index.ts";
 
 export type AgentEvent =
   | { type: "search"; query: string }
@@ -12,21 +16,47 @@ export type AgentEvent =
       titles: string[];
     }
   | { type: "thinking"; text: string }
+  | {
+      type: "turn_complete";
+      turnIdx: number;
+      usage: TurnUsage;
+      latencyMs: number;
+    }
   | { type: "answer"; text: string }
   | { type: "max_turns_reached" };
 
-export type AgentOptions = {
-  model?: string;
-  maxTurns?: number;
-  apiKey?: string;
-  onEvent?: (event: AgentEvent) => void;
+export type TurnUsage = {
+  inputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  outputTokens: number;
+  thinkTokensApprox: number;
+};
+
+export type AgentUsage = TurnUsage & {
+  totalTokens: number;
+  cacheHitRate: number;
 };
 
 export type AgentResult = {
   answer: string;
+  answerChars: number;
   turns: number;
   searches: number;
   stopped: "end_turn" | "max_turns" | "other";
+  usage: AgentUsage;
+  latencyMs: number;
+};
+
+export type ThinkingConfig = { budgetTokens: number };
+
+export type AgentOptions = {
+  prompt?: PromptConfig;
+  model?: string;
+  maxTurns?: number;
+  apiKey?: string;
+  thinking?: ThinkingConfig;
+  onEvent?: (event: AgentEvent) => void;
 };
 
 export const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
@@ -43,6 +73,8 @@ export async function answerQuestion(
   const model = options.model ?? DEFAULT_MODEL;
   const maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS;
   const emit = options.onEvent ?? (() => {});
+  const prompt = options.prompt ?? getPrompt(DEFAULT_PROMPT_ID);
+  const thinking = options.thinking;
 
   const messages: Anthropic.Messages.MessageParam[] = [
     { role: "user", content: question },
@@ -51,13 +83,42 @@ export async function answerQuestion(
   let searches = 0;
   let lastAssistantText = "";
 
+  const cumulative: TurnUsage = {
+    inputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+    outputTokens: 0,
+    thinkTokensApprox: 0,
+  };
+
+  const startTime = Date.now();
+
   for (let turn = 1; turn <= maxTurns; turn++) {
-    const response = await client.messages.create({
+    const turnStart = Date.now();
+
+    const requestParams: Anthropic.Messages.MessageCreateParams = {
       model,
       max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
-      tools: [SEARCH_WIKIPEDIA_TOOL],
+      system: prompt.systemPrompt,
+      tools: [prompt.tool],
       messages,
+    };
+    if (thinking) {
+      requestParams.thinking = {
+        type: "enabled",
+        budget_tokens: thinking.budgetTokens,
+      };
+    }
+
+    const response = await client.messages.create(requestParams);
+    const turnUsage = computeTurnUsage(response);
+    accumulate(cumulative, turnUsage);
+
+    emit({
+      type: "turn_complete",
+      turnIdx: turn,
+      usage: turnUsage,
+      latencyMs: Date.now() - turnStart,
     });
 
     const textBlocks = response.content.filter(
@@ -66,41 +127,48 @@ export async function answerQuestion(
     const toolUseBlocks = response.content.filter(
       (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use",
     );
+    const thinkingBlocks = response.content.filter(
+      (b): b is Anthropic.Messages.ThinkingBlock => b.type === "thinking",
+    );
 
     lastAssistantText = textBlocks.map((b) => b.text).join("\n").trim();
 
+    for (const tb of thinkingBlocks) {
+      if (tb.thinking.trim().length > 0) {
+        emit({ type: "thinking", text: tb.thinking });
+      }
+    }
+
     if (response.stop_reason === "end_turn") {
       emit({ type: "answer", text: lastAssistantText });
-      return {
+      return finalize({
         answer: lastAssistantText,
         turns: turn,
         searches,
         stopped: "end_turn",
-      };
+        cumulative,
+        startTime,
+      });
     }
 
     if (response.stop_reason !== "tool_use") {
-      // Unexpected (e.g., max_tokens). Return what we have.
-      return {
+      return finalize({
         answer: lastAssistantText,
         turns: turn,
         searches,
         stopped: "other",
-      };
+        cumulative,
+        startTime,
+      });
     }
 
-    // Model wants to use tools. Emit any "thinking" text it produced alongside.
-    for (const tb of textBlocks) {
-      if (tb.text.trim().length > 0) {
-        emit({ type: "thinking", text: tb.text });
-      }
-    }
-
+    // Append the entire response (including thinking blocks) so Claude
+    // retains its prior reasoning across turns.
     messages.push({ role: "assistant", content: response.content });
 
     const toolResults: Anthropic.Messages.ToolResultBlockParam[] = [];
     for (const tu of toolUseBlocks) {
-      if (tu.name !== "search_wikipedia") {
+      if (tu.name !== prompt.tool.name) {
         toolResults.push({
           type: "tool_result",
           tool_use_id: tu.id,
@@ -116,7 +184,8 @@ export async function answerQuestion(
         toolResults.push({
           type: "tool_result",
           tool_use_id: tu.id,
-          content: "Error: search_wikipedia requires a non-empty `query` string.",
+          content:
+            "Error: search_wikipedia requires a non-empty `query` string.",
           is_error: true,
         });
         continue;
@@ -153,13 +222,72 @@ export async function answerQuestion(
   }
 
   emit({ type: "max_turns_reached" });
-  return {
+  return finalize({
     answer:
       lastAssistantText ||
       "(I exhausted my search budget without producing a final answer.)",
     turns: maxTurns,
     searches,
     stopped: "max_turns",
+    cumulative,
+    startTime,
+  });
+}
+
+function computeTurnUsage(response: Anthropic.Messages.Message): TurnUsage {
+  const u = response.usage;
+  const thinkingChars = response.content
+    .filter((b): b is Anthropic.Messages.ThinkingBlock => b.type === "thinking")
+    .reduce((s, b) => s + b.thinking.length, 0);
+  return {
+    inputTokens: u.input_tokens ?? 0,
+    cacheReadTokens: u.cache_read_input_tokens ?? 0,
+    cacheCreationTokens: u.cache_creation_input_tokens ?? 0,
+    outputTokens: u.output_tokens ?? 0,
+    thinkTokensApprox: Math.ceil(thinkingChars / 4),
+  };
+}
+
+function accumulate(target: TurnUsage, delta: TurnUsage): void {
+  target.inputTokens += delta.inputTokens;
+  target.cacheReadTokens += delta.cacheReadTokens;
+  target.cacheCreationTokens += delta.cacheCreationTokens;
+  target.outputTokens += delta.outputTokens;
+  target.thinkTokensApprox += delta.thinkTokensApprox;
+}
+
+function finalize(args: {
+  answer: string;
+  turns: number;
+  searches: number;
+  stopped: AgentResult["stopped"];
+  cumulative: TurnUsage;
+  startTime: number;
+}): AgentResult {
+  const { cumulative } = args;
+  const inputForCacheRate =
+    cumulative.inputTokens + cumulative.cacheReadTokens;
+  const cacheHitRate =
+    inputForCacheRate > 0
+      ? cumulative.cacheReadTokens / inputForCacheRate
+      : 0;
+  const totalTokens =
+    cumulative.inputTokens +
+    cumulative.cacheReadTokens +
+    cumulative.cacheCreationTokens +
+    cumulative.outputTokens;
+  return {
+    answer: args.answer,
+    answerChars: args.answer.length,
+    turns: args.turns,
+    searches: args.searches,
+    stopped: args.stopped,
+    usage: {
+      ...cumulative,
+      totalTokens,
+      cacheHitRate,
+    },
+    latencyMs: Date.now() - args.startTime,
   };
 }
 

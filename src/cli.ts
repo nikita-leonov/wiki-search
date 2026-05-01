@@ -1,5 +1,10 @@
 import { answerQuestion, DEFAULT_MODEL, type AgentEvent } from "./agent.ts";
 import { loadEnv } from "./loadEnv.ts";
+import {
+  DEFAULT_PROMPT_ID,
+  getPrompt,
+  listPromptIds,
+} from "./prompts/index.ts";
 
 type Args = {
   question?: string;
@@ -8,20 +13,24 @@ type Args = {
   model?: string;
   maxTurns?: number;
   apiKey?: string;
+  promptId?: string;
+  thinkingBudget?: number;
   help: boolean;
 };
 
-const HELP = `wiki-search — answer questions using Claude + Wikipedia
+const HELP_TEMPLATE = `wiki-search — answer questions using Claude + Wikipedia
 
 Usage:
-  npm run ask -- "your question"           One-shot question
-  npm run demo                             Run a curated set of demo questions
-  npm run ask -- --verbose "your q"        Show search calls and reasoning
+  npm run ask -- "your question"            One-shot question
+  npm run demo                              Run a curated demo set
+  npm run ask -- --verbose "your q"         Show search calls and reasoning
 
 Options:
   --demo                Run a small curated demo set
-  --verbose, -v         Show search queries, results, and reasoning (to stderr)
+  --verbose, -v         Show search queries, results, reasoning, per-turn token usage (stderr)
   --model MODEL         Claude model id (default: ${DEFAULT_MODEL})
+  --prompt ID           Prompt variant id (default: ${DEFAULT_PROMPT_ID}; available: %PROMPTS%)
+  --thinking N          Enable extended thinking with N budget tokens (default: off)
   --max-turns N         Maximum search rounds (default: 6)
   --api-key KEY         Provide the Anthropic API key inline (highest precedence)
   --help, -h            Show this help
@@ -48,12 +57,18 @@ function parseArgs(argv: string[]): Args {
     else if (a === "--verbose" || a === "-v") args.verbose = true;
     else if (a === "--help" || a === "-h") args.help = true;
     else if (a === "--model") args.model = argv[++i];
+    else if (a === "--prompt") args.promptId = argv[++i];
+    else if (a === "--thinking") args.thinkingBudget = Number(argv[++i]);
     else if (a === "--max-turns") args.maxTurns = Number(argv[++i]);
     else if (a === "--api-key") args.apiKey = argv[++i];
     else positional.push(a);
   }
   if (positional.length > 0) args.question = positional.join(" ");
   return args;
+}
+
+function helpText(): string {
+  return HELP_TEMPLATE.replace("%PROMPTS%", listPromptIds().join(", "));
 }
 
 function makeVerboseLogger(): (event: AgentEvent) => void {
@@ -75,6 +90,13 @@ function makeVerboseLogger(): (event: AgentEvent) => void {
           `[think] ${event.text.split("\n").join("\n        ")}\n`,
         );
         break;
+      case "turn_complete": {
+        const u = event.usage;
+        process.stderr.write(
+          `[turn ${event.turnIdx}]   in:${u.inputTokens} cache_r:${u.cacheReadTokens} cache_w:${u.cacheCreationTokens} out:${u.outputTokens} think~${u.thinkTokensApprox}  ${event.latencyMs}ms\n`,
+        );
+        break;
+      }
       case "max_turns_reached":
         process.stderr.write(`[!] Max turns reached.\n`);
         break;
@@ -85,18 +107,34 @@ function makeVerboseLogger(): (event: AgentEvent) => void {
   };
 }
 
-async function runOne(question: string, args: Args, apiKey: string): Promise<void> {
+async function runOne(
+  question: string,
+  args: Args,
+  apiKey: string,
+): Promise<void> {
   process.stdout.write(`\n> ${question}\n\n`);
   const onEvent = args.verbose ? makeVerboseLogger() : undefined;
+  const promptConfig = args.promptId ? getPrompt(args.promptId) : undefined;
+  const thinking =
+    args.thinkingBudget && args.thinkingBudget > 0
+      ? { budgetTokens: args.thinkingBudget }
+      : undefined;
+
   const result = await answerQuestion(question, {
+    prompt: promptConfig,
     model: args.model,
     maxTurns: args.maxTurns,
     apiKey,
+    thinking,
     onEvent,
   });
+
   process.stdout.write(`${result.answer}\n`);
+  const u = result.usage;
   process.stdout.write(
-    `\n— ${result.searches} search${result.searches === 1 ? "" : "es"}, ${result.turns} turn${result.turns === 1 ? "" : "s"}, stopped: ${result.stopped}\n`,
+    `\n— ${result.searches} search${result.searches === 1 ? "" : "es"}, ${result.turns} turn${result.turns === 1 ? "" : "s"}, stopped: ${result.stopped}\n` +
+      `  tokens: in=${u.inputTokens} cache_r=${u.cacheReadTokens} cache_w=${u.cacheCreationTokens} out=${u.outputTokens} think~${u.thinkTokensApprox} (total=${u.totalTokens}, cache_hit=${(u.cacheHitRate * 100).toFixed(1)}%)\n` +
+      `  latency: ${result.latencyMs}ms, answer: ${result.answerChars} chars\n`,
   );
 }
 
@@ -111,12 +149,12 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
   if (args.help) {
-    process.stdout.write(HELP + "\n");
+    process.stdout.write(helpText() + "\n");
     process.exit(0);
   }
 
   if (!args.question && !args.demo) {
-    process.stderr.write(HELP + "\n");
+    process.stderr.write(helpText() + "\n");
     process.exit(1);
   }
 

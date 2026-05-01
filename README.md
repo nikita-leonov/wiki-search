@@ -54,6 +54,34 @@ You can also smoke-test the Wikipedia integration alone, which needs no API key:
 npm run smoke:wiki -- "Albert Einstein"
 ```
 
+## Evals
+
+A standalone eval harness lives under `evals/`. It runs a matrix of `prompt × dataset × judge × iterations`, captures token / latency / cache / cost metrics per cell, and writes three rotating-primary-key markdown reports.
+
+```bash
+# See what would run, without calling the API
+npm run eval -- --dry-run
+
+# Full run with the default config (evals/config.json)
+npm run eval
+
+# Quick subset for iteration
+npm run eval -- --prompts v1 --datasets factual --iterations 1
+
+# Compare a different judge model
+npm run eval -- --judge-model claude-opus-4-7
+```
+
+Each run writes `evals/runs/<ISO timestamp>/`:
+- `report.md` — overall summary plus the three reports (Prompt → Dataset → Judge, Dataset → Judge → Prompt, Judge → Prompt → Dataset).
+- `report.json` — raw rows + config, re-aggregatable.
+- `log.jsonl` — one JSON line per cell as it completes (live-tail-friendly).
+
+Adding a new prompt, dataset, or judge:
+- **Prompt**: drop a file under `src/prompts/` and register it in `src/prompts/index.ts`.
+- **Dataset**: drop a JSONL file under `evals/datasets/` and register it in `evals/registry.ts`. Each line: `{"id": "...", "question": "...", "gold": "..." (optional), "notes": "..." (optional)}`.
+- **Judge**: add it to `evals/judges.ts` and include it in the `JUDGES` registry.
+
 ## Design notes
 
 - **One tool only: `search_wikipedia(query: str)`.** Per the spec. The tool returns up to 5 ranked hits with intro extracts (≤1500 chars each) in a single MediaWiki API call (`generator=search` + `prop=extracts`). The agent does follow-up searches for depth instead of needing a separate `fetch_article` tool.
@@ -65,14 +93,28 @@ npm run smoke:wiki -- "Albert Einstein"
 
 ```
 src/
-  wikipedia.ts       MediaWiki API client (search → ranked hits with intros)
-  prompts.ts         System prompt + tool schema (single source of truth)
-  agent.ts           Tool-use loop
-  cli.ts             CLI entry point
-  loadEnv.ts         Tiny .env parser (zero deps)
+  wikipedia.ts        MediaWiki API client
+  prompts/            Prompt registry — single source of truth, used by CLI and evals
+    types.ts          PromptConfig type
+    v1.ts / v0.ts     Variants
+    index.ts          Registry + DEFAULT_PROMPT_ID
+  agent.ts            Tool-use loop (prompt + thinking config via options)
+  cli.ts              CLI entry point
+  loadEnv.ts          Tiny .env parser (zero deps)
+evals/
+  cli.ts              Standalone eval entry point
+  runner.ts           Matrix orchestration, concurrency, live progress
+  reports.ts          Aggregation + three rotating-primary-key markdown reports
+  registry.ts         Resolves prompt / dataset / judge ids
+  judges.ts           Citation (heuristic) + correctness (LLM) judges
+  cost.ts             Per-model price table + cost estimation
+  types.ts            Shared eval types
+  config.json         Default eval matrix
+  datasets/           JSONL test sets (factual / ambiguous / multihop)
 scripts/
-  smoke-wikipedia.ts  Standalone Wikipedia search test
+  smoke-wikipedia.ts  Standalone Wikipedia search smoke test
 .env.example
 package.json
 tsconfig.json
+CLAUDE.md             Project guidance for AI tools (test policy, conventions)
 ```

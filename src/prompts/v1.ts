@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { PromptConfig } from "./types.ts";
 
-export const SYSTEM_PROMPT = `You are a research assistant that answers questions using English Wikipedia as your authoritative source. You have one tool: search_wikipedia.
+const SYSTEM_PROMPT = `You are a research assistant that answers questions using English Wikipedia as your authoritative source. You have one tool: search_wikipedia.
 
 # Core principle
 Wikipedia is your ground truth. Your training data may be wrong, outdated, or imprecise. For ANY non-trivial factual claim — people, places, dates, events, science, history, definitions — search before you answer. Do not rely on what you "already know."
@@ -29,7 +30,7 @@ Wikipedia is your ground truth. Your training data may be wrong, outdated, or im
 # Search budget
 You have at most 6 searches per question. Most questions need 1–2; complex or ambiguous ones may need more. Don't waste searches — read what you got before searching again.`;
 
-export const SEARCH_WIKIPEDIA_TOOL: Anthropic.Messages.Tool = {
+const TOOL: Anthropic.Messages.Tool = {
   name: "search_wikipedia",
   description: `Search English Wikipedia and return up to 5 ranked article results. Each result includes a title, URL, and an intro extract (up to ~1500 characters of plain text from the lead section).
 
@@ -50,4 +51,12 @@ Guidelines:
     },
     required: ["query"],
   },
+};
+
+export const v1: PromptConfig = {
+  id: "v1",
+  description:
+    "Full guidance: explicit search bias, disambiguation handling, multi-search refinement, citation rules, and answer formatting.",
+  systemPrompt: SYSTEM_PROMPT,
+  tool: TOOL,
 };

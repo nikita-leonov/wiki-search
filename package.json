@@ -7,7 +7,9 @@
   "scripts": {
     "ask": "tsx src/cli.ts",
     "demo": "tsx src/cli.ts --demo",
+    "eval": "tsx evals/cli.ts",
     "smoke:wiki": "tsx scripts/smoke-wikipedia.ts",
+    "test": "node --import tsx --test \"{src,evals}/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

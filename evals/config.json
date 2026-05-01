@@ -1,0 +1,10 @@
+{
+  "prompts": ["v0", "v1"],
+  "datasets": ["factual", "ambiguous", "multihop"],
+  "judges": ["correctness", "citation"],
+  "iterations": 3,
+  "model": "claude-haiku-4-5-20251001",
+  "judgeModel": "claude-sonnet-4-6",
+  "concurrency": 4,
+  "maxTurns": 6
+}
