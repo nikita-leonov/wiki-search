@@ -304,7 +304,7 @@ function rowToCells(row: RenderRow, primaryPad: number): string[] {
   return [
     groupCell,
     `${a.count}${errSuffix}`,
-    fmtNum(a.meanScore, 2),
+    fmtNum(a.meanScore, 3),
     fmtMs(a.p50LatencyMs),
     fmtTokens(Math.round(a.meanInputTokens + a.meanOutputTokens)),
     fmtNum(a.meanSearches, 1),
@@ -385,11 +385,11 @@ export function renderAllReports(
   const errSuffix =
     overall.errorCount > 0 ? ` (${overall.errorCount} errors)` : "";
   lines.push(`  rows:           ${overall.count}${errSuffix}`);
-  lines.push(`  mean score:     ${fmtNum(overall.meanScore)}`);
+  lines.push(`  mean score:     ${fmtNum(overall.meanScore, 3)}`);
   const perJudge =
     Object.entries(overall.meanScoreByJudge)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([j, v]) => `${j}=${fmtNum(v)}`)
+      .map(([j, v]) => `${j}=${fmtNum(v, 3)}`)
       .join(", ") || "—";
   lines.push(`  per-judge mean: ${perJudge}`);
   lines.push(
