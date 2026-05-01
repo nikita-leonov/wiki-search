@@ -217,6 +217,19 @@ function buildHtml(reports: SlimReport[]): string {
   .cohort-row:last-child { border-bottom: none; }
   .cohort-row .swatch { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
   .cohort-row .name { font-weight: 600; min-width: 80px; }
+  .cohort-row .count {
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 12px;
+    color: var(--muted);
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .cohort-row .count.empty {
+    color: #b91c1c;
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+  }
   .metric-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 6px 16px;
@@ -442,6 +455,23 @@ function buildHtml(reports: SlimReport[]): string {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
+  // How many rows in qualifying reports match this cohort's pinned ids.
+  // Independent of metric — useful for showing data availability in the UI.
+  // ──────────────────────────────────────────────────────────────────────────
+  function qualifyingRowsFor(cohort) {
+    let count = 0;
+    for (const r of REPORTS) {
+      if (!reportQualifies(cohort, r)) continue;
+      for (const row of r.rows || []) {
+        if (state.pin.promptId && cohort.promptId != null && row.promptId !== cohort.promptId) continue;
+        if (state.pin.datasetId && cohort.datasetId != null && row.datasetId !== cohort.datasetId) continue;
+        count++;
+      }
+    }
+    return count;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
   // Raw per-row metric values for a cohort. Walks reports newest-first
   // (REPORTS is sorted runAt-desc), filters rows by the cohort's pinned ids,
   // and excludes whole reports whose artifact hash for any pinned dim does
@@ -533,10 +563,15 @@ function buildHtml(reports: SlimReport[]): string {
         }).join("");
         return '<label>' + DIM_LABELS[d] + ': <select data-dim="' + d + '">' + opts + '</select></label>';
       }).join(" ");
+      const rowCount = qualifyingRowsFor(cohort);
+      const countBadge = rowCount === 0
+        ? '<span class="count empty" title="No row in any loaded report matches this cohort. The combination has not been run, or the pinned hashes filter all reports out.">0 rows</span>'
+        : '<span class="count">' + rowCount + ' rows</span>';
       row.innerHTML =
         '<span class="swatch" style="background: ' + color + '"></span>' +
         '<span class="name">Cohort ' + cohort.id + '</span>' +
         (dimSelects || '<span style="color: var(--muted); font-style: italic;">(all dims aggregated)</span>') +
+        countBadge +
         '<button class="remove" data-action="remove">×</button>';
       row.querySelectorAll("select").forEach(sel => {
         sel.addEventListener("change", e => {
