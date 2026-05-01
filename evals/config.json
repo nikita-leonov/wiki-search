@@ -1,6 +1,6 @@
 {
   "prompts": ["v0", "v1"],
-  "datasets": ["factual", "ambiguous", "multihop"],
+  "datasets": ["factual", "ambiguous", "multihop", "unanswerable"],
   "judges": ["correctness", "citation", "groundedness"],
   "iterations": 3,
   "model": "claude-haiku-4-5-20251001",

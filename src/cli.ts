@@ -71,13 +71,22 @@ function helpText(): string {
   return HELP_TEMPLATE.replace("%PROMPTS%", listPromptIds().join(", "));
 }
 
-function makeVerboseLogger(): (event: AgentEvent) => void {
+/**
+ * Stderr event logger for the agent loop.
+ *
+ * Always emits `[search]` lines so the user can see the tool is working in
+ * non-verbose mode. Verbose mode adds search-result titles, thinking blocks,
+ * per-turn token/latency lines, and zero-valued token types are suppressed
+ * to keep lines compact.
+ */
+function makeProgressLogger(verbose: boolean): (event: AgentEvent) => void {
   return (event) => {
     switch (event.type) {
       case "search":
         process.stderr.write(`[search] "${event.query}"\n`);
         break;
       case "search_result": {
+        if (!verbose) break;
         const preview = event.titles.slice(0, 3).join(", ");
         const more = event.titles.length > 3 ? ", …" : "";
         process.stderr.write(
@@ -86,14 +95,23 @@ function makeVerboseLogger(): (event: AgentEvent) => void {
         break;
       }
       case "thinking":
+        if (!verbose) break;
         process.stderr.write(
           `[think] ${event.text.split("\n").join("\n        ")}\n`,
         );
         break;
       case "turn_complete": {
+        if (!verbose) break;
         const u = event.usage;
+        const parts = [`in:${u.inputTokens}`];
+        if (u.cacheReadTokens > 0) parts.push(`cache_r:${u.cacheReadTokens}`);
+        if (u.cacheCreationTokens > 0)
+          parts.push(`cache_w:${u.cacheCreationTokens}`);
+        parts.push(`out:${u.outputTokens}`);
+        if (u.thinkTokensApprox > 0)
+          parts.push(`think~${u.thinkTokensApprox}`);
         process.stderr.write(
-          `[turn ${event.turnIdx}]   in:${u.inputTokens} cache_r:${u.cacheReadTokens} cache_w:${u.cacheCreationTokens} out:${u.outputTokens} think~${u.thinkTokensApprox}  ${event.latencyMs}ms\n`,
+          `[turn ${event.turnIdx}]   ${parts.join(" ")}  ${event.latencyMs}ms\n`,
         );
         break;
       }
@@ -113,12 +131,18 @@ async function runOne(
   apiKey: string,
 ): Promise<void> {
   process.stdout.write(`\n> ${question}\n\n`);
-  const onEvent = args.verbose ? makeVerboseLogger() : undefined;
   const promptConfig = args.promptId ? getPrompt(args.promptId) : undefined;
   const thinking =
     args.thinkingBudget && args.thinkingBudget > 0
       ? { budgetTokens: args.thinkingBudget }
       : undefined;
+
+  // Progress signal so the user sees something happening before the first
+  // search event lands. Skipped in verbose mode (verbose has its own noisy
+  // stream).
+  if (!args.verbose) {
+    process.stderr.write("[working]\n");
+  }
 
   const result = await answerQuestion(question, {
     prompt: promptConfig,
@@ -126,16 +150,28 @@ async function runOne(
     maxTurns: args.maxTurns,
     apiKey,
     thinking,
-    onEvent,
+    onEvent: makeProgressLogger(args.verbose),
   });
 
   process.stdout.write(`${result.answer}\n`);
-  const u = result.usage;
-  process.stdout.write(
-    `\n— ${result.searches} search${result.searches === 1 ? "" : "es"}, ${result.turns} turn${result.turns === 1 ? "" : "s"}, stopped: ${result.stopped}\n` +
-      `  tokens: in=${u.inputTokens} cache_r=${u.cacheReadTokens} cache_w=${u.cacheCreationTokens} out=${u.outputTokens} think~${u.thinkTokensApprox} (total=${u.totalTokens})\n` +
-      `  latency: ${result.latencyMs}ms, answer: ${result.answerChars} chars\n`,
-  );
+
+  // Token / latency metrics are verbose-only. Non-verbose runs print just
+  // the answer so the output is pipe-friendly (e.g. `npm run ask "..." | tee`).
+  if (args.verbose) {
+    const u = result.usage;
+    const tokenParts = [`in=${u.inputTokens}`];
+    if (u.cacheReadTokens > 0) tokenParts.push(`cache_r=${u.cacheReadTokens}`);
+    if (u.cacheCreationTokens > 0)
+      tokenParts.push(`cache_w=${u.cacheCreationTokens}`);
+    tokenParts.push(`out=${u.outputTokens}`);
+    if (u.thinkTokensApprox > 0)
+      tokenParts.push(`think~${u.thinkTokensApprox}`);
+    process.stdout.write(
+      `\n— ${result.searches} search${result.searches === 1 ? "" : "es"}, ${result.turns} turn${result.turns === 1 ? "" : "s"}, stopped: ${result.stopped}\n` +
+        `  tokens: ${tokenParts.join(" ")} (total=${u.totalTokens})\n` +
+        `  latency: ${result.latencyMs}ms, answer: ${result.answerChars} chars\n`,
+    );
+  }
 }
 
 function resolveApiKey(args: Args): string | null {

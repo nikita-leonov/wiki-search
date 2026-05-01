@@ -10,7 +10,6 @@
     "eval": "tsx evals/cli.ts",
     "smoke:wiki": "tsx scripts/smoke-wikipedia.ts",
     "preview:report": "tsx scripts/preview-report.ts",
-    "backfill:hashes": "tsx scripts/backfill-artifact-hashes.ts",
     "test": "node --import tsx --test \"{src,evals}/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },

@@ -9,6 +9,7 @@ describe("dataset loader", () => {
     assert.ok(ids.includes("factual"));
     assert.ok(ids.includes("ambiguous"));
     assert.ok(ids.includes("multihop"));
+    assert.ok(ids.includes("unanswerable"));
   });
 
   test("loadDataset returns a populated dataset with hash", () => {

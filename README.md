@@ -89,8 +89,6 @@ Adding a new prompt, dataset, or judge:
 - **LLM judge**: under `evals/judges/llm/`, drop a `<id>.yaml` rubric and a `<id>.ts` that builds the user message (each judge needs different inputs from the row), then add it to `JUDGES` in `evals/judges/index.ts`.
 - **Deterministic judge** (e.g. citation): pure code in `evals/judges/deterministic/<id>.ts`; no YAML.
 
-If you have past `report-*.json` files generated before artifact hashing was added, run `npm run backfill:hashes` to populate the `artifacts` block in place. Hashes are computed from the *current* artifact files, so the back-fill only matches historical state if the artifacts haven't been edited since.
-
 Every YAML / JSON artifact gets a SHA-256 short-fingerprint at load time, recorded in `report-<ts>.json` under `artifacts.{prompts,judges,datasets}` so each run is pinned to the exact versions it consumed.
 
 ## Design notes
