@@ -93,7 +93,7 @@ npm run eval > evals/runs/last-report.md
 For ad-hoc cohort comparisons (e.g. "is v0 better than v1 by groundedness on each item of the unanswerable dataset?"), generate a self-contained HTML page that ingests every `report-*.json` in a directory:
 
 ```bash
-# Default: scan evals/runs/, take the 15 most recent reports by runAt
+# Default: scan evals/runs/, take the 50 most recent reports by runAt
 npm run report:html
 
 # Custom limit, custom directory, custom output path

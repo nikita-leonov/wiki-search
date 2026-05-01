@@ -24,11 +24,11 @@ const HELP = `Usage:
   npm run report:html -- [DIR] [--limit N] [--out PATH]
 
 Reads all report-*.json files in DIR (default: evals/runs/), takes the N most
-recent by runAt timestamp (default: 15), and writes a self-contained HTML
+recent by runAt timestamp (default: 50), and writes a self-contained HTML
 page that lets you build cohort-vs-cohort data-point comparisons.
 
 Options:
-  --limit N    Use only the N most recent reports (default 15).
+  --limit N    Use only the N most recent reports (default 50).
   --out PATH   Output HTML path (default: <DIR>/comparison.html).
   --help, -h   Show this help.
 `;
@@ -60,7 +60,7 @@ function parseArgs(argv: string[]): {
   out?: string;
 } {
   let dir: string | undefined;
-  let limit = 15;
+  let limit = 50;
   let out: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
