@@ -1,6 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 import { searchWikipedia, type WikipediaHit } from "./wikipedia.ts";
+
+export type RetrievedContext = {
+  query: string;
+  hits: WikipediaHit[];
+};
 import {
   DEFAULT_PROMPT_ID,
   getPrompt,
@@ -46,6 +51,12 @@ export type AgentResult = {
   stopped: "end_turn" | "max_turns" | "other";
   usage: AgentUsage;
   latencyMs: number;
+  /**
+   * Every successful search_wikipedia call made during the run, in order.
+   * Failed searches are not included. Used by the groundedness judge to verify
+   * that claims in the answer trace back to retrieved data.
+   */
+  retrievedContext: RetrievedContext[];
 };
 
 export type ThinkingConfig = { budgetTokens: number };
@@ -82,6 +93,7 @@ export async function answerQuestion(
 
   let searches = 0;
   let lastAssistantText = "";
+  const retrievedContext: RetrievedContext[] = [];
 
   const cumulative: TurnUsage = {
     inputTokens: 0,
@@ -148,6 +160,7 @@ export async function answerQuestion(
         stopped: "end_turn",
         cumulative,
         startTime,
+        retrievedContext,
       });
     }
 
@@ -159,6 +172,7 @@ export async function answerQuestion(
         stopped: "other",
         cumulative,
         startTime,
+        retrievedContext,
       });
     }
 
@@ -196,6 +210,7 @@ export async function answerQuestion(
 
       try {
         const hits = await searchWikipedia(query, { limit: 5 });
+        retrievedContext.push({ query, hits });
         emit({
           type: "search_result",
           query,
@@ -231,6 +246,7 @@ export async function answerQuestion(
     stopped: "max_turns",
     cumulative,
     startTime,
+    retrievedContext,
   });
 }
 
@@ -263,6 +279,7 @@ function finalize(args: {
   stopped: AgentResult["stopped"];
   cumulative: TurnUsage;
   startTime: number;
+  retrievedContext: RetrievedContext[];
 }): AgentResult {
   const { cumulative } = args;
   const inputForCacheRate =
@@ -288,6 +305,7 @@ function finalize(args: {
       cacheHitRate,
     },
     latencyMs: Date.now() - args.startTime,
+    retrievedContext: args.retrievedContext,
   };
 }
 

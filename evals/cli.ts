@@ -145,8 +145,11 @@ function resolveApiKey(args: CliArgs): string | null {
 }
 
 function defaultOutDir(): string {
-  const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  return join(__dirname, "runs", ts);
+  return join(__dirname, "runs");
+}
+
+function safeTimestamp(iso: string): string {
+  return iso.replace(/[:.]/g, "-");
 }
 
 function describeRegistry(): string {
@@ -213,14 +216,23 @@ async function main(): Promise<void> {
   const outDir = resolve(args.outDir ?? defaultOutDir());
   mkdirSync(outDir, { recursive: true });
 
+  const runAt = new Date().toISOString();
+  const startedAt = Date.now();
+  const ts = safeTimestamp(runAt);
+
+  const reportJsonPath = join(outDir, `report-${ts}.json`);
+  const logPath = join(outDir, `log-${ts}.jsonl`);
+
   process.stderr.write(
     `Running ${matrix.cells.length} cells (${config.prompts.length} prompts × ${config.datasets.reduce((s, d) => s + matrix.datasets.find((x) => x.id === d)!.items.length, 0)} items × ${config.iterations} iterations) with concurrency=${config.concurrency}.\n`,
   );
-  process.stderr.write(`Output: ${outDir}\n\n`);
+  process.stderr.write(
+    `Run id: ${ts}\nArtifacts will be written to:\n` +
+      `  ${reportJsonPath}\n  ${logPath}\n\n`,
+  );
 
   const progress = new ProgressDisplay(matrix.cells.length);
-  const logPath = join(outDir, "log.jsonl");
-  // Truncate; we'll append per row.
+  // Truncate the log; we'll append per row.
   writeFileSync(logPath, "");
 
   const rows = await runMatrix(config, matrix, {
@@ -232,17 +244,23 @@ async function main(): Promise<void> {
   });
   progress.finish();
 
-  // Write structured + rendered reports.
+  const runDurationMs = Date.now() - startedAt;
+  const meta = { runAt, runDurationMs };
+
+  // Write structured results. `runAt` lives both in the filename (so the
+  // file is self-identifying when shared) and inside the JSON (so tooling
+  // can correlate runs without depending on filenames).
   writeFileSync(
-    join(outDir, "report.json"),
-    JSON.stringify({ config, rows }, null, 2),
+    reportJsonPath,
+    JSON.stringify({ runAt, runDurationMs, config, rows }, null, 2),
   );
 
-  const md = renderAllReports(config, rows);
-  const reportPath = join(outDir, "report.md");
-  writeFileSync(reportPath, md);
-
-  process.stderr.write(`\nDone. Report: ${reportPath}\n`);
+  // Render the report for stdout only — the JSON is the persistent artifact;
+  // markdown is for human consumption right now. Capture via shell redirect
+  // (`npm run eval > report.md`) if you want to keep it.
+  const md = renderAllReports(config, rows, meta);
+  process.stdout.write("\n" + md + "\n");
+  process.stderr.write(`\nResults written to: ${reportJsonPath}\n`);
 }
 
 main().catch((err: unknown) => {

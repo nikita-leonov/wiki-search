@@ -72,10 +72,16 @@ npm run eval -- --prompts v1 --datasets factual --iterations 1
 npm run eval -- --judge-model claude-opus-4-7
 ```
 
-Each run writes `evals/runs/<ISO timestamp>/`:
-- `report.md` — overall summary plus the three reports (Prompt → Dataset → Judge, Dataset → Judge → Prompt, Judge → Prompt → Dataset).
-- `report.json` — raw rows + config, re-aggregatable.
-- `log.jsonl` — one JSON line per cell as it completes (live-tail-friendly).
+Each run writes two files into `evals/runs/`, both suffixed with the same ISO timestamp so they identify the specific execution:
+
+- `report-<ts>.json` — raw rows + config + `runAt` + `runDurationMs`. This is the persistent artifact; downstream tooling re-aggregates from it.
+- `log-<ts>.jsonl` — one JSON line per cell as it completes (live-tail-friendly).
+
+The full rendered report (overall summary + the three rotating-primary-key reports) is printed to **stdout** at the end of the run. Capture it with a shell redirect if you want a saved markdown file:
+
+```bash
+npm run eval > evals/runs/last-report.md
+```
 
 Adding a new prompt, dataset, or judge:
 - **Prompt**: drop a file under `src/prompts/` and register it in `src/prompts/index.ts`.

@@ -96,6 +96,7 @@ async function runOneCell(
           answer: agentResult.answer,
           gold: item.gold,
           notes: item.notes,
+          retrievedContext: agentResult.retrievedContext,
           apiKey,
           judgeModel: config.judgeModel,
         });
@@ -124,7 +125,12 @@ async function runOneCell(
     usage: agentResult?.usage ?? EMPTY_USAGE,
     latencyMs: agentResult?.latencyMs ?? Date.now() - start,
     costUsd: agentResult ? estimateCost(config.model, agentResult.usage) : 0,
+    judgeCostUsd: judgeScores.reduce(
+      (sum, s) => sum + (s.usage?.costUsd ?? 0),
+      0,
+    ),
     citationCount: agentResult ? countCitations(agentResult.answer) : 0,
+    retrievedContext: agentResult?.retrievedContext ?? [],
     judgeScores,
     error,
   };
@@ -163,15 +169,14 @@ export async function runMatrix(
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Live progress display (stderr) — overwrites a single line, with milestone
-// summaries every ~10% so the log isn't lost on rolling output.
+// Live progress display (stderr) — single line per completed cell, with
+// cumulative tokens and cost shown on each line so progress is self-contained.
 // ──────────────────────────────────────────────────────────────────────────────
 
 export class ProgressDisplay {
   private startTime = Date.now();
   private cumulativeTokens = 0;
   private cumulativeCost = 0;
-  private lastMilestone = 0;
 
   constructor(private total: number) {}
 
@@ -187,6 +192,13 @@ export class ProgressDisplay {
     const elapsedSec = (Date.now() - this.startTime) / 1000;
     const rate = completed / elapsedSec;
     const etaSec = rate > 0 ? Math.max(0, (this.total - completed) / rate) : 0;
+
+    const tokenParts = [`in:${u.inputTokens}`];
+    if (u.cacheReadTokens > 0) tokenParts.push(`cache:${u.cacheReadTokens}`);
+    tokenParts.push(`out:${u.outputTokens}`);
+    if (u.thinkTokensApprox > 0)
+      tokenParts.push(`think~${u.thinkTokensApprox}`);
+
     const judgeSummary =
       row.judgeScores.length > 0
         ? row.judgeScores
@@ -200,28 +212,17 @@ export class ProgressDisplay {
 
     const line =
       `[${String(completed).padStart(String(this.total).length)}/${this.total}] ${cell}` +
-      ` | in:${u.inputTokens} cache_r:${u.cacheReadTokens} out:${u.outputTokens} think~${u.thinkTokensApprox}` +
-      ` | ${row.latencyMs}ms | ${judgeSummary}${errMark}` +
+      ` | ${tokenParts.join(" ")}` +
+      ` | ${formatLatency(row.latencyMs)} | ${judgeSummary}${errMark}` +
+      ` | Σ ${formatTokens(this.cumulativeTokens)} ${formatCost(this.cumulativeCost)}` +
       ` | ETA ${formatDuration(etaSec)}`;
 
-    process.stderr.write("\r\x1b[2K" + line);
-
-    const stepPct = Math.max(1, Math.floor(this.total / 10));
-    const crossedMilestone = Math.floor(completed / stepPct);
-    if (
-      (crossedMilestone > this.lastMilestone && completed < this.total) ||
-      completed === this.total
-    ) {
-      this.lastMilestone = crossedMilestone;
-      const pct = Math.floor((completed * 100) / this.total);
-      process.stderr.write(
-        `\n  ─── ${pct}% (${completed}/${this.total}) — total tokens ${this.cumulativeTokens}, est cost $${this.cumulativeCost.toFixed(4)}, elapsed ${formatDuration(elapsedSec)} ───\n`,
-      );
-    }
+    // One line per cell — give the user a scrollable, inspectable history.
+    process.stderr.write(line + "\n");
   }
 
   finish(): void {
-    process.stderr.write("\n");
+    /* nothing — each line was already terminated. */
   }
 }
 
@@ -238,4 +239,21 @@ function formatDuration(seconds: number): string {
   return `${h}h${m}m`;
 }
 
-export { formatDuration };
+function formatLatency(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function formatTokens(n: number): string {
+  if (n < 1000) return `${n}t`;
+  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}Kt`;
+  return `${(n / 1_000_000).toFixed(2)}Mt`;
+}
+
+function formatCost(usd: number): string {
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  if (usd < 1) return `$${usd.toFixed(3)}`;
+  return `$${usd.toFixed(2)}`;
+}
+
+export { formatDuration, formatLatency, formatTokens, formatCost };
