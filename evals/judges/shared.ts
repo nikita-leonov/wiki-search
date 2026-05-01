@@ -20,6 +20,8 @@ export type JudgeContext = {
   retrievedContext?: RetrievedContext[];
   apiKey: string;
   judgeModel: string;
+  /** SDK retries on 429 / 5xx; defaults to 5 if unset. */
+  maxApiRetries?: number;
 };
 
 export type JudgeFn = (ctx: JudgeContext) => Promise<JudgeScore>;
@@ -111,12 +113,17 @@ export function parseJudgeJson(
   }
 }
 
+const DEFAULT_MAX_API_RETRIES = 5;
+
 export async function callLlmJudge(
   rubric: Rubric,
   userMessage: string,
   ctx: JudgeContext,
 ): Promise<{ text: string; usage: JudgeUsage }> {
-  const client = new Anthropic({ apiKey: ctx.apiKey });
+  const client = new Anthropic({
+    apiKey: ctx.apiKey,
+    maxRetries: ctx.maxApiRetries ?? DEFAULT_MAX_API_RETRIES,
+  });
   const response = await client.messages.create({
     model: ctx.judgeModel,
     max_tokens: rubric.maxTokens,

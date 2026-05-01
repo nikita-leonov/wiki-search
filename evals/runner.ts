@@ -81,6 +81,7 @@ async function runOneCell(
       maxTurns: config.maxTurns,
       apiKey,
       thinking: config.thinking,
+      maxApiRetries: config.maxApiRetries,
     });
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
@@ -98,6 +99,7 @@ async function runOneCell(
           retrievedContext: agentResult.retrievedContext,
           apiKey,
           judgeModel: config.judgeModel,
+          maxApiRetries: config.maxApiRetries,
         });
         judgeScores.push(score);
       } catch (err) {

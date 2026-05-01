@@ -60,6 +60,7 @@ type CliArgs = {
   judgeModel?: string;
   concurrency?: number;
   maxTurns?: number;
+  maxApiRetries?: number;
   thinkingBudget?: number;
   help: boolean;
 };
@@ -82,8 +83,9 @@ Overrides for any field in the config:
   --iterations N        Iterations per (prompt × item) cell
   --model ID            Agent model (e.g. claude-haiku-4-5-20251001)
   --judge-model ID      Judge model (e.g. claude-sonnet-4-6)
-  --concurrency N       Parallel cells in flight (default: 4)
+  --concurrency N       Parallel cells in flight (default: 8)
   --max-turns N         Agent search budget (default: 6)
+  --max-api-retries N   SDK retries on 429 / 5xx (default: 5; raise for tier 1)
   --thinking N          Enable extended thinking with N budget tokens
   --help, -h
 
@@ -120,6 +122,8 @@ function parseArgs(argv: string[]): CliArgs {
     else if (a === "--judge-model") args.judgeModel = argv[++i];
     else if (a === "--concurrency") args.concurrency = Number(argv[++i]);
     else if (a === "--max-turns") args.maxTurns = Number(argv[++i]);
+    else if (a === "--max-api-retries")
+      args.maxApiRetries = Number(argv[++i]);
     else if (a === "--thinking") args.thinkingBudget = Number(argv[++i]);
     else {
       process.stderr.write(`Unknown argument: ${a}\n`);
@@ -158,6 +162,11 @@ function applyOverrides(config: EvalRunConfig, args: CliArgs): EvalRunConfig {
     out.concurrency = args.concurrency;
   if (args.maxTurns !== undefined && Number.isFinite(args.maxTurns))
     out.maxTurns = args.maxTurns;
+  if (
+    args.maxApiRetries !== undefined &&
+    Number.isFinite(args.maxApiRetries)
+  )
+    out.maxApiRetries = args.maxApiRetries;
   if (args.thinkingBudget && args.thinkingBudget > 0)
     out.thinking = { budgetTokens: args.thinkingBudget };
   return out;
@@ -214,6 +223,7 @@ async function main(): Promise<void> {
         `  iterations:    ${config.iterations}`,
         `  concurrency:   ${config.concurrency}`,
         `  max turns:     ${config.maxTurns}`,
+        `  api retries:   ${config.maxApiRetries ?? 5}`,
         `  thinking:      ${config.thinking ? `${config.thinking.budgetTokens} tokens` : "off"}`,
         "",
         `  → total cells: ${matrix.cells.length}`,

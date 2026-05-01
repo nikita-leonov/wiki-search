@@ -5,6 +5,7 @@
   "iterations": 3,
   "model": "claude-haiku-4-5-20251001",
   "judgeModel": "claude-sonnet-4-6",
-  "concurrency": 4,
-  "maxTurns": 6
+  "concurrency": 8,
+  "maxTurns": 6,
+  "maxApiRetries": 5
 }

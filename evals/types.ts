@@ -9,6 +9,12 @@ export type EvalRunConfig = {
   judgeModel: string;
   concurrency: number;
   maxTurns: number;
+  /**
+   * Max retries the Anthropic SDK does on 429 / 5xx (exponential backoff).
+   * Higher = more tolerant of rate-limit bursts at the cost of longer
+   * per-cell latency when limits are hit. Defaults to 5.
+   */
+  maxApiRetries?: number;
   thinking?: { budgetTokens: number };
   outDir?: string;
 };

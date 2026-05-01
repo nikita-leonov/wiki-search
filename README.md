@@ -70,7 +70,12 @@ npm run eval -- --prompts v1 --datasets factual --iterations 1
 
 # Compare a different judge model
 npm run eval -- --judge-model claude-opus-4-7
+
+# Crank concurrency on a higher rate-limit tier; raise SDK retries if you hit 429s
+npm run eval -- --concurrency 16 --max-api-retries 8
 ```
+
+**Rate limits.** Default `concurrency` is 8 and `maxApiRetries` is 5. The Anthropic SDK retries 429 / 5xx responses with exponential backoff, so transient rate-limit bursts don't fail cells; they just slow the run. On API tier 1 the default RPM is tight — drop `concurrency` to 2-4 if you see sustained 429-storms in the logs. On tier 2+ (1000+ RPM) you can comfortably push `concurrency` to 16 or higher.
 
 Each run writes two files into `evals/runs/`, both suffixed with the same ISO timestamp so they identify the specific execution:
 

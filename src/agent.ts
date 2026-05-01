@@ -66,20 +66,29 @@ export type AgentOptions = {
   maxTurns?: number;
   apiKey?: string;
   thinking?: ThinkingConfig;
+  /**
+   * Max retries the Anthropic SDK performs on 429 / 5xx errors with
+   * exponential backoff. Higher values absorb more rate-limit pressure
+   * before a request fails outright. Defaults to 5 (SDK default is 2).
+   */
+  maxApiRetries?: number;
   onEvent?: (event: AgentEvent) => void;
 };
 
 export const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_MAX_TURNS = 6;
+const DEFAULT_MAX_API_RETRIES = 5;
 const MAX_TOKENS = 2048;
 
 export async function answerQuestion(
   question: string,
   options: AgentOptions = {},
 ): Promise<AgentResult> {
-  const client = new Anthropic(
-    options.apiKey ? { apiKey: options.apiKey } : undefined,
-  );
+  const maxRetries = options.maxApiRetries ?? DEFAULT_MAX_API_RETRIES;
+  const client = new Anthropic({
+    ...(options.apiKey ? { apiKey: options.apiKey } : {}),
+    maxRetries,
+  });
   const model = options.model ?? DEFAULT_MODEL;
   const maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS;
   const emit = options.onEvent ?? (() => {});
