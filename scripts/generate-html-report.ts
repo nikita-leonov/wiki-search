@@ -164,574 +164,951 @@ function escapeHtml(s: string): string {
 
 function buildHtml(reports: SlimReport[]): string {
   const title = `Eval Comparison — ${reports.length} run${reports.length === 1 ? "" : "s"}`;
-  return `<!DOCTYPE html>
+  // The HTML is React + Babel-standalone matching the design handoff. All
+  // application logic runs in the browser against the embedded REPORTS data.
+  return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>${escapeHtml(title)}</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --fg: #1a1a1a;
-    --muted: #6b6b6b;
-    --bg: #fafafa;
-    --panel: #fff;
-    --border: #e3e3e3;
-    --accent: #2563eb;
+    --bg: oklch(99% 0.003 240);
+    --panel: #ffffff;
+    --border: oklch(92% 0.005 240);
+    --border-strong: oklch(86% 0.008 240);
+    --text: oklch(22% 0.01 240);
+    --text-muted: oklch(55% 0.01 240);
+    --text-faint: oklch(70% 0.008 240);
+    --accent: oklch(55% 0.18 260);
+    --accent-soft: oklch(96% 0.02 260);
+    --hover: oklch(96% 0.005 240);
+    --active: oklch(93% 0.008 240);
+    --c1: oklch(58% 0.18 260);
+    --c2: oklch(62% 0.18 25);
+    --c3: oklch(60% 0.16 155);
+    --c4: oklch(64% 0.16 80);
+    --shadow-sm: 0 1px 2px rgba(15,23,42,0.04);
+    --shadow-md: 0 4px 12px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04);
+    --shadow-lg: 0 12px 32px rgba(15,23,42,0.10), 0 2px 6px rgba(15,23,42,0.05);
+    --radius: 6px;
+    --radius-lg: 10px;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
+  html, body { margin: 0; padding: 0; height: 100%; }
   body {
-    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    color: var(--fg);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--text);
     background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.005em;
   }
-  header {
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    padding: 16px 24px;
-  }
-  header h1 { margin: 0 0 4px 0; font-size: 18px; }
-  header .meta { color: var(--muted); font-size: 12px; font-family: ui-monospace, "SF Mono", monospace; }
-  header .meta .row { display: block; }
-  main { padding: 24px; max-width: 1280px; margin: 0 auto; }
-  section { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; }
-  section h2 { margin: 0 0 12px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
-  label { display: inline-flex; align-items: center; gap: 6px; }
-  select, button, input { font: inherit; }
-  select { padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; background: white; }
-  button {
-    padding: 6px 12px; border: 1px solid var(--border); border-radius: 4px;
-    background: white; cursor: pointer;
-  }
-  button:hover { background: #f0f0f0; }
-  button.primary { background: var(--accent); color: white; border-color: var(--accent); }
-  button.primary:hover { background: #1d4ed8; }
-  button.remove { padding: 2px 8px; color: var(--muted); }
-  .row-controls { display: flex; gap: 24px; flex-wrap: wrap; }
-  .cohort-row {
-    display: flex; align-items: center; gap: 12px;
-    padding: 6px 0; border-bottom: 1px dashed var(--border);
-    flex-wrap: wrap;
-  }
-  .cohort-row:last-child { border-bottom: none; }
-  .cohort-row .swatch { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
-  .cohort-row .name { font-weight: 600; min-width: 80px; }
-  .cohort-row .count {
-    font-family: ui-monospace, "SF Mono", monospace;
-    font-size: 12px;
-    color: var(--muted);
-    background: #f1f5f9;
-    padding: 2px 8px;
-    border-radius: 999px;
-  }
-  .cohort-row .count.empty {
-    color: #b91c1c;
-    background: #fee2e2;
-    border: 1px solid #fca5a5;
-  }
-  .chart-card { padding: 12px 0; }
-  .chart-card h3 { margin: 0 0 8px 0; font-size: 13px; color: var(--muted); }
-  canvas { max-height: 360px; }
-  .empty { color: var(--muted); font-style: italic; padding: 12px 0; }
-  .footnote { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  button { font-family: inherit; font-size: inherit; color: inherit; }
+  #root { min-height: 100vh; display: flex; flex-direction: column; }
 </style>
 </head>
 <body>
-<header>
-  <h1>Eval Comparison</h1>
-  <div class="meta" id="meta"></div>
-</header>
+<div id="root"></div>
 
-<main>
-  <section>
-    <h2>Cohort shape</h2>
-    <div class="row-controls" id="pin-controls">
-      <label><input type="checkbox" data-dim="promptId" checked> Pin <strong>prompt</strong></label>
-      <label><input type="checkbox" data-dim="datasetId" checked> Pin <strong>dataset</strong></label>
-      <label><input type="checkbox" data-dim="judgeId" checked> Pin <strong>judge</strong></label>
-    </div>
-    <div class="footnote">Each cohort fixes the pinned dimensions (id + hash); unpinned dimensions are aggregated. Changing the pin set resets cohorts. A cohort only includes data from reports where the artifact hash of the pinned id matches — so accumulating across runs only happens when the pinned artifacts are byte-identical.</div>
-  </section>
-
-  <section>
-    <h2>Sampling</h2>
-    <label>Sample size: <input id="sample-size" type="number" min="1" value="1" style="width: 80px"></label>
-    <div class="footnote">Each chart point is the mean of <em>sample size</em> consecutive raw metric values, gathered newest-first across qualifying reports. <strong>1</strong> = individual values (no aggregation). Up to 25 points are shown; with less data, each cohort's line simply ends where its data does — it is not extended to match longer cohorts.</div>
-  </section>
-
-  <section>
-    <h2>Cohorts</h2>
-    <div id="cohorts"></div>
-    <button id="add-cohort" class="primary" style="margin-top: 8px;">+ Add cohort</button>
-  </section>
-
-  <section>
-    <h2>Metric</h2>
-    <label>Show: <select id="metric"></select></label>
-  </section>
-
-  <section>
-    <h2>Chart</h2>
-    <div id="charts"></div>
-  </section>
-</main>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
 
 <script id="reports-data" type="application/json">${embedJson(reports)}</script>
 
-<script>
-(() => {
-  const REPORTS = JSON.parse(document.getElementById("reports-data").textContent);
+<script type="text/babel" data-presets="react">
+// ---------------------------------------------------------------------------
+// Data prep: derive PROMPTS / DATASETS / JUDGES (each as { id, label, hash }
+// where id = composite "label|hash" key) from the embedded reports. METRICS
+// includes per-metric range/group so the chart can pick a sensible Y range
+// without auto-scaling.
+// ---------------------------------------------------------------------------
+const REPORTS = JSON.parse(document.getElementById('reports-data').textContent);
 
-  const DIM_LABELS = { promptId: "Prompt", datasetId: "Dataset", judgeId: "Judge" };
-  const DIMS = ["promptId", "datasetId", "judgeId"];
-  const DIM_TO_ARTIFACT_KEY = { promptId: "prompts", datasetId: "datasets", judgeId: "judges" };
+const DIM_TO_ARTIFACT_KEY = { prompt: 'prompts', dataset: 'datasets', judge: 'judges' };
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Distinct (id, hash) options per dim, gathered across all loaded reports.
-  // The id list comes from rows; the hash comes from the report's artifacts
-  // map for that dim. A dim id with two different hashes across reports
-  // becomes two separate options (correctly so — they're not interchangeable).
-  // ──────────────────────────────────────────────────────────────────────────
-  function collectIdsInReport(report, dim) {
+function distinctOptions(dim) {
+  const out = new Map();
+  for (const r of REPORTS) {
     const ids = new Set();
-    for (const row of (report.rows || [])) {
-      if (dim === "judgeId") {
-        for (const s of (row.judgeScores || [])) ids.add(s.judgeId);
-      } else if (dim === "promptId") {
-        ids.add(row.promptId);
-      } else if (dim === "datasetId") {
-        ids.add(row.datasetId);
-      }
+    for (const row of r.rows || []) {
+      if (dim === 'judge') for (const s of row.judgeScores || []) ids.add(s.judgeId);
+      else if (dim === 'prompt') ids.add(row.promptId);
+      else ids.add(row.datasetId);
     }
-    return ids;
-  }
-
-  function distinctOptions(dim) {
-    const seen = new Map();
-    for (const r of REPORTS) {
-      const idsInRows = collectIdsInReport(r, dim);
-      const hashMap = (r.artifacts && r.artifacts[DIM_TO_ARTIFACT_KEY[dim]]) || {};
-      for (const id of idsInRows) {
-        const hash = hashMap[id] ?? null;
-        const key = id + "|" + (hash ?? "");
-        if (!seen.has(key)) seen.set(key, { id, hash, key });
-      }
+    const hashMap = (r.artifacts && r.artifacts[DIM_TO_ARTIFACT_KEY[dim]]) || {};
+    for (const label of ids) {
+      const hash = hashMap[label] ?? null;
+      const id = label + '|' + (hash ?? '');
+      if (!out.has(id)) out.set(id, { id, label, hash });
     }
-    return Array.from(seen.values()).sort((a, b) =>
-      a.id.localeCompare(b.id) || (a.hash ?? "").localeCompare(b.hash ?? ""));
   }
+  return [...out.values()].sort((a, b) => a.label.localeCompare(b.label) || (a.hash ?? '').localeCompare(b.hash ?? ''));
+}
 
-  const VALUES = {
-    promptId: distinctOptions("promptId"),
-    datasetId: distinctOptions("datasetId"),
-    judgeId: distinctOptions("judgeId"),
-  };
+const PROMPTS = distinctOptions('prompt');
+const DATASETS = distinctOptions('dataset');
+const JUDGES = distinctOptions('judge');
 
-  function optionLabel(opt) {
-    return opt.hash ? opt.id + " (" + opt.hash + ")" : opt.id + " (no hash)";
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Metric definitions
-  // ──────────────────────────────────────────────────────────────────────────
-  function mean(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : NaN; }
-  function percentile(sorted, p) {
-    if (!sorted.length) return NaN;
-    if (sorted.length === 1) return sorted[0];
-    const rank = (p / 100) * (sorted.length - 1);
-    const lo = Math.floor(rank), hi = Math.ceil(rank);
-    if (lo === hi) return sorted[lo];
-    return sorted[lo] + (sorted[hi] - sorted[lo]) * (rank - lo);
-  }
-  function okRows(rows) { return rows.filter(r => !r.error); }
-  function judgeScoresOf(rows, judgeId) {
-    const out = [];
-    for (const r of okRows(rows)) {
-      for (const s of (r.judgeScores || [])) {
-        if (judgeId == null || s.judgeId === judgeId) out.push(s);
-      }
+// ---------------------------------------------------------------------------
+// Metrics: id, label, group, unit (display only), range (Y-axis hint), and
+// compute(rows, judgeId) for one row OR many.
+// ---------------------------------------------------------------------------
+function meanArr(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : NaN; }
+function percentile(sorted, p) {
+  if (!sorted.length) return NaN;
+  if (sorted.length === 1) return sorted[0];
+  const rank = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(rank), hi = Math.ceil(rank);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (rank - lo);
+}
+function okRows(rows) { return rows.filter(r => !r.error); }
+function judgeScoresIn(rows, judgeId) {
+  const out = [];
+  for (const r of okRows(rows)) {
+    for (const s of r.judgeScores || []) {
+      if (judgeId == null || s.judgeId === judgeId) out.push(s);
     }
-    return out;
   }
+  return out;
+}
 
-  const METRICS = {
-    meanScore: {
-      label: "Mean score (0–1)",
-      compute: (rows, judgeId) => mean(judgeScoresOf(rows, judgeId).map(s => s.score)),
-    },
-    passRate: {
-      label: "Pass rate (judge.pass)",
-      compute: (rows, judgeId) => {
-        const ss = judgeScoresOf(rows, judgeId).filter(s => s.pass !== undefined);
-        return ss.length ? ss.filter(s => s.pass).length / ss.length : NaN;
-      },
-    },
-    p50LatencyMs: {
-      label: "p50 latency (ms)",
-      compute: (rows) => percentile(okRows(rows).map(r => r.latencyMs).sort((a, b) => a - b), 50),
-    },
-    p95LatencyMs: {
-      label: "p95 latency (ms)",
-      compute: (rows) => percentile(okRows(rows).map(r => r.latencyMs).sort((a, b) => a - b), 95),
-    },
-    meanInputTokens: {
-      label: "Mean input tokens",
-      compute: (rows) => mean(okRows(rows).map(r => (r.usage && r.usage.inputTokens) || 0)),
-    },
-    meanOutputTokens: {
-      label: "Mean output tokens",
-      compute: (rows) => mean(okRows(rows).map(r => (r.usage && r.usage.outputTokens) || 0)),
-    },
-    meanThinkTokens: {
-      label: "Mean think tokens (approx)",
-      compute: (rows) => mean(okRows(rows).map(r => (r.usage && r.usage.thinkTokensApprox) || 0)),
-    },
-    meanSearches: {
-      label: "Mean searches per cell",
-      compute: (rows) => mean(okRows(rows).map(r => r.searches || 0)),
-    },
-    meanCostUsd: {
-      label: "Mean cost per cell ($)",
-      compute: (rows, judgeId) => {
-        return mean(okRows(rows).map(r => {
-          const judgeCost = judgeId != null
-            ? ((r.judgeScores || []).find(s => s.judgeId === judgeId)?.usage?.costUsd ?? 0)
-            : (r.judgeCostUsd ?? 0);
-          return (r.costUsd ?? 0) + judgeCost;
-        }));
-      },
-    },
-    errorRate: {
-      label: "Error rate",
-      compute: (rows) => rows.length ? rows.filter(r => r.error).length / rows.length : 0,
-    },
-  };
+const METRICS = [
+  { id: 'meanScore', label: 'Mean score', unit: '0–1', range: [0, 1], group: 'Quality',
+    compute: (rows, j) => meanArr(judgeScoresIn(rows, j).map(s => s.score)) },
+  { id: 'passRate', label: 'Pass rate (judge)', unit: '%', range: [0, 1], group: 'Quality',
+    compute: (rows, j) => {
+      const ss = judgeScoresIn(rows, j).filter(s => s.pass !== undefined);
+      return ss.length ? ss.filter(s => s.pass).length / ss.length : NaN;
+    } },
+  { id: 'p50LatencyMs', label: 'p50 latency', unit: 'ms', range: [0, 5000], group: 'Performance',
+    compute: (rows) => percentile(okRows(rows).map(r => r.latencyMs).sort((a, b) => a - b), 50) },
+  { id: 'p95LatencyMs', label: 'p95 latency', unit: 'ms', range: [0, 12000], group: 'Performance',
+    compute: (rows) => percentile(okRows(rows).map(r => r.latencyMs).sort((a, b) => a - b), 95) },
+  { id: 'meanInputTokens', label: 'Mean input tokens', unit: 'tok', range: [0, 8000], group: 'Cost',
+    compute: (rows) => meanArr(okRows(rows).map(r => (r.usage && r.usage.inputTokens) || 0)) },
+  { id: 'meanOutputTokens', label: 'Mean output tokens', unit: 'tok', range: [0, 4000], group: 'Cost',
+    compute: (rows) => meanArr(okRows(rows).map(r => (r.usage && r.usage.outputTokens) || 0)) },
+  { id: 'meanThinkTokens', label: 'Mean think tokens (approx)', unit: 'tok', range: [0, 1000], group: 'Cost',
+    compute: (rows) => meanArr(okRows(rows).map(r => (r.usage && r.usage.thinkTokensApprox) || 0)) },
+  { id: 'meanSearches', label: 'Mean searches per call', unit: '', range: [0, 6], group: 'Cost',
+    compute: (rows) => meanArr(okRows(rows).map(r => r.searches || 0)) },
+  { id: 'meanCostUsd', label: 'Mean cost per call', unit: '\\u0024', range: [0, 0.2], group: 'Cost',
+    compute: (rows, j) => meanArr(okRows(rows).map(r => {
+      const jc = j != null
+        ? ((r.judgeScores || []).find(s => s.judgeId === j)?.usage?.costUsd ?? 0)
+        : (r.judgeCostUsd ?? 0);
+      return (r.costUsd ?? 0) + jc;
+    })) },
+  { id: 'errorRate', label: 'Error rate', unit: '%', range: [0, 0.2], group: 'Reliability',
+    compute: (rows) => rows.length ? rows.filter(r => r.error).length / rows.length : 0 },
+];
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // State
-  // ──────────────────────────────────────────────────────────────────────────
-  const MAX_POINTS = 25;
-  const state = {
-    pin: { promptId: true, datasetId: true, judgeId: true },
-    sampleSize: 1,
-    cohorts: [], // { id, promptId?, promptHash?, datasetId?, datasetHash?, judgeId?, judgeHash? }
-    metric: "meanScore",
-    nextCohortId: 1,
-  };
+// ---------------------------------------------------------------------------
+// Chart series: walk reports newest-first, qualify by hash, compute per-row
+// metric values, then bucket into mean-of-N for up to MAX_POINTS chart points.
+// ---------------------------------------------------------------------------
+const MAX_POINTS = 25;
 
-  function pinnedDims() { return DIMS.filter(d => state.pin[d]); }
+function parseOptionId(compositeId) {
+  if (compositeId == null) return { label: null, hash: null };
+  const idx = compositeId.indexOf('|');
+  if (idx < 0) return { label: compositeId, hash: null };
+  const hash = compositeId.slice(idx + 1);
+  return { label: compositeId.slice(0, idx), hash: hash === '' ? null : hash };
+}
 
-  function newCohort() {
-    const cohort = { id: state.nextCohortId++ };
-    for (const d of pinnedDims()) {
-      const first = VALUES[d][0];
-      if (first) {
-        cohort[d] = first.id;
-        cohort[d + "Hash"] = first.hash;
-      }
+function reportQualifies(cohort, report) {
+  for (const dim of ['prompt', 'dataset', 'judge']) {
+    const composite = cohort[dim];
+    if (composite == null) continue; // unpinned
+    const { label, hash } = parseOptionId(composite);
+    const reportHash = (report.artifacts && report.artifacts[DIM_TO_ARTIFACT_KEY[dim]] && report.artifacts[DIM_TO_ARTIFACT_KEY[dim]][label]) ?? null;
+    if (reportHash !== hash) return false;
+  }
+  return true;
+}
+
+function rawValuesFor(cohort, metricId) {
+  const metric = METRICS.find(m => m.id === metricId);
+  if (!metric) return [];
+  const promptLabel = parseOptionId(cohort.prompt).label;
+  const datasetLabel = parseOptionId(cohort.dataset).label;
+  const judgeLabel = parseOptionId(cohort.judge).label;
+  const values = [];
+  for (const r of REPORTS) {
+    if (!reportQualifies(cohort, r)) continue;
+    for (const row of r.rows || []) {
+      if (cohort.prompt != null && row.promptId !== promptLabel) continue;
+      if (cohort.dataset != null && row.datasetId !== datasetLabel) continue;
+      const v = metric.compute([row], judgeLabel);
+      if (Number.isFinite(v)) values.push(v);
     }
-    return cohort;
   }
+  return values;
+}
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Hash-aware filtering: a report is "qualifying" for a cohort iff for every
-  // pinned dim, the report's artifact hash for that id matches the cohort's
-  // pinned hash. Non-qualifying reports contribute zero rows to the cohort.
-  // ──────────────────────────────────────────────────────────────────────────
-  function reportQualifies(cohort, report) {
-    for (const d of DIMS) {
-      if (!state.pin[d]) continue;
-      if (cohort[d] == null) continue;
-      const reportHash = (report.artifacts && report.artifacts[DIM_TO_ARTIFACT_KEY[d]] && report.artifacts[DIM_TO_ARTIFACT_KEY[d]][cohort[d]]) ?? null;
-      const cohortHash = cohort[d + "Hash"] ?? null;
-      if (reportHash !== cohortHash) return false;
-    }
-    return true;
+function bucketRawValues(values, sampleSize) {
+  const out = [];
+  for (let i = 0; i < values.length && out.length < MAX_POINTS; i += sampleSize) {
+    const bucket = values.slice(i, i + sampleSize);
+    if (!bucket.length) break;
+    out.push(bucket.reduce((a, b) => a + b, 0) / bucket.length);
   }
+  return out;
+}
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // How many rows in qualifying reports match this cohort's pinned ids.
-  // Independent of metric — useful for showing data availability in the UI.
-  // ──────────────────────────────────────────────────────────────────────────
-  function qualifyingRowsFor(cohort) {
-    let count = 0;
-    for (const r of REPORTS) {
-      if (!reportQualifies(cohort, r)) continue;
-      for (const row of r.rows || []) {
-        if (state.pin.promptId && cohort.promptId != null && row.promptId !== cohort.promptId) continue;
-        if (state.pin.datasetId && cohort.datasetId != null && row.datasetId !== cohort.datasetId) continue;
-        count++;
-      }
-    }
-    return count;
-  }
+function generateSeries(cohort, metricId, sampleSize) {
+  const raw = rawValuesFor(cohort, metricId);
+  return bucketRawValues(raw, Math.max(1, sampleSize));
+}
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Raw per-row metric values for a cohort. Walks reports newest-first
-  // (REPORTS is sorted runAt-desc), filters rows by the cohort's pinned ids,
-  // and excludes whole reports whose artifact hash for any pinned dim does
-  // not match. Each surviving row contributes a single per-row metric value.
-  // ──────────────────────────────────────────────────────────────────────────
-  function rawValuesFor(cohort, metricKey) {
-    const judgeId = state.pin.judgeId ? cohort.judgeId : null;
-    const values = [];
-    for (const r of REPORTS) {
-      if (!reportQualifies(cohort, r)) continue;
-      for (const row of (r.rows || [])) {
-        if (state.pin.promptId && cohort.promptId != null && row.promptId !== cohort.promptId) continue;
-        if (state.pin.datasetId && cohort.datasetId != null && row.datasetId !== cohort.datasetId) continue;
-        const v = METRICS[metricKey].compute([row], judgeId);
-        if (Number.isFinite(v)) values.push(v);
-      }
-    }
-    return values;
-  }
+window.EvalData = { REPORTS, PROMPTS, DATASETS, JUDGES, METRICS, MAX_POINTS, generateSeries, parseOptionId };
+</script>
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Bucket raw values into mean-of-N groups starting from the newest. Returns
-  // up to MAX_POINTS data points. The last bucket may be partial when raw
-  // values run out — we still include its mean so cohorts with short data
-  // produce a short line rather than nothing at all.
-  // ──────────────────────────────────────────────────────────────────────────
-  function bucketRawValues(rawValues, sampleSize) {
-    const points = [];
-    const limit = MAX_POINTS;
-    for (let i = 0; i < rawValues.length && points.length < limit; i += sampleSize) {
-      const bucket = rawValues.slice(i, i + sampleSize);
-      if (bucket.length === 0) break;
-      const sum = bucket.reduce((a, b) => a + b, 0);
-      points.push(sum / bucket.length);
-    }
-    return points;
-  }
+<script type="text/babel" data-presets="react">
+const { useState, useRef, useEffect, useLayoutEffect } = React;
 
-  function dataPointsFor(cohort, metricKey) {
-    const raw = rawValuesFor(cohort, metricKey);
-    return bucketRawValues(raw, Math.max(1, state.sampleSize));
-  }
+function Popover({ open, onClose, anchorRef, children, align = 'start', offset = 6 }) {
+  const popRef = useRef(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  useLayoutEffect(() => {
+    if (!open || !anchorRef.current || !popRef.current) return;
+    const r = anchorRef.current.getBoundingClientRect();
+    const p = popRef.current.getBoundingClientRect();
+    let left = r.left;
+    if (align === 'end') left = r.right - p.width;
+    if (align === 'center') left = r.left + r.width / 2 - p.width / 2;
+    let top = r.bottom + offset;
+    const margin = 8;
+    if (left + p.width > window.innerWidth - margin) left = window.innerWidth - margin - p.width;
+    if (left < margin) left = margin;
+    if (top + p.height > window.innerHeight - margin) top = r.top - offset - p.height;
+    setPos({ top, left });
+  }, [open, align, offset, anchorRef]);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => {
+      if (popRef.current?.contains(e.target)) return;
+      if (anchorRef.current?.contains(e.target)) return;
+      onClose?.();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, onClose, anchorRef]);
+  if (!open) return null;
+  return (
+    <div ref={popRef} style={{
+      position: 'fixed', top: pos.top, left: pos.left, zIndex: 100,
+      background: 'var(--panel)', border: '1px solid var(--border-strong)',
+      borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)',
+      minWidth: 220, overflow: 'hidden', animation: 'pop-in 120ms ease-out',
+    }}>{children}</div>
+  );
+}
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Rendering
-  // ──────────────────────────────────────────────────────────────────────────
-  const COHORT_COLORS = [
-    "#2563eb", "#dc2626", "#16a34a", "#ea580c",
-    "#9333ea", "#0d9488", "#ca8a04", "#be185d",
+function InfoTip({ children }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  return (
+    <span ref={ref}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      style={{ display: 'inline-flex', alignItems: 'center', position: 'relative', cursor: 'help' }}>
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ color: 'var(--text-faint)' }}>
+        <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.2" />
+        <circle cx="8" cy="5.2" r="0.8" fill="currentColor" />
+        <path d="M8 7.5v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+      {open && (
+        <span style={{
+          position: 'absolute', top: '100%', left: '50%',
+          transform: 'translate(-50%, 6px)',
+          background: 'oklch(22% 0.01 240)', color: 'oklch(96% 0.005 240)',
+          padding: '8px 10px', borderRadius: 6, fontSize: 12, lineHeight: 1.45,
+          width: 260, zIndex: 200, fontWeight: 400, letterSpacing: 0,
+          textTransform: 'none', pointerEvents: 'none', boxShadow: 'var(--shadow-md)',
+        }}>{children}</span>
+      )}
+    </span>
+  );
+}
+
+const chipBase = {
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+  height: 28, padding: '0 10px',
+  background: 'var(--panel)', border: '1px solid var(--border)',
+  borderRadius: 6, cursor: 'pointer', fontSize: 13, color: 'var(--text)',
+  transition: 'background 80ms, border-color 80ms', whiteSpace: 'nowrap',
+};
+
+function SectionLabel({ children, info }) {
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      textTransform: 'uppercase', letterSpacing: '0.06em',
+      fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', marginRight: 8,
+    }}>
+      {children}
+      {info && <InfoTip>{info}</InfoTip>}
+    </div>
+  );
+}
+
+function NumberInput({ value, onChange, min, max, step = 1, width = 64 }) {
+  return (
+    <input type="number" value={value} min={min} max={max} step={step}
+      onChange={e => onChange(Math.max(min ?? -Infinity, Math.min(max ?? Infinity, Number(e.target.value) || 0)))}
+      style={{
+        height: 26, width, border: '1px solid var(--border)', borderRadius: 6,
+        padding: '0 8px', fontFamily: 'inherit', fontSize: 13,
+        color: 'var(--text)', background: 'var(--panel)', outline: 'none',
+      }}
+      onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+      onBlur={e => e.target.style.borderColor = 'var(--border)'}
+    />
+  );
+}
+
+const styleEl = document.createElement('style');
+styleEl.textContent = \`
+  @keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  ::selection { background: var(--accent-soft); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  input:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+\`;
+document.head.appendChild(styleEl);
+
+Object.assign(window, { Popover, InfoTip, SectionLabel, NumberInput, chipBase });
+</script>
+
+<script type="text/babel" data-presets="react">
+const { useState: useStateT, useRef: useRefT, useMemo: useMemoT } = React;
+
+function ListPopover({ open, onClose, anchorRef, items, value, onSelect, includeAny }) {
+  return (
+    <Popover open={open} onClose={onClose} anchorRef={anchorRef} align="start">
+      <div style={{ padding: 4, maxHeight: 320, overflowY: 'auto', minWidth: 240 }}>
+        {includeAny && (
+          <button
+            onClick={() => { onSelect(null); onClose(); }}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+              padding: '7px 10px', background: value == null ? 'var(--accent-soft)' : 'transparent',
+              border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 13, textAlign: 'left',
+              color: 'var(--text)', fontStyle: 'italic',
+            }}
+            onMouseEnter={e => { if (value != null) e.currentTarget.style.background = 'var(--hover)'; }}
+            onMouseLeave={e => { if (value != null) e.currentTarget.style.background = 'transparent'; }}
+          >
+            <span>any (aggregate)</span>
+            <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>—</span>
+          </button>
+        )}
+        {items.map(item => {
+          const selected = item.id === value;
+          return (
+            <button key={item.id}
+              onClick={() => { onSelect(item.id); onClose(); }}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                padding: '7px 10px', background: selected ? 'var(--accent-soft)' : 'transparent',
+                border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 13, textAlign: 'left', color: 'var(--text)',
+              }}
+              onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'var(--hover)'; }}
+              onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <span>{item.label}</span>
+              <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>{item.hash || 'no hash'}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Popover>
+  );
+}
+
+function CohortDimChip({ items, value, onChange, onClear, mode, dimLabel, dimFull }) {
+  const [open, setOpen] = useStateT(false);
+  const ref = useRefT(null);
+  const item = items.find(i => i.id === value);
+  const isAny = mode === 'any';
+  const showClear = mode === 'set' && onClear;
+  return (
+    <>
+      <button ref={ref}
+        onClick={() => setOpen(o => !o)}
+        title={isAny ? \`Set \${dimFull.toLowerCase()}\` : \`Change \${dimFull.toLowerCase()}\`}
+        style={{
+          ...chipBase, height: 26, padding: showClear ? '0 4px 0 8px' : '0 8px',
+          fontSize: 12.5, gap: 5,
+          background: isAny ? 'transparent' : 'var(--panel)',
+          borderColor: 'var(--border)', borderStyle: isAny ? 'dashed' : 'solid',
+          color: isAny ? 'var(--text-muted)' : 'var(--text)',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'var(--hover)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = isAny ? 'transparent' : 'var(--panel)'; }}
+      >
+        <span style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-faint)', fontWeight: 600 }}>{dimLabel}</span>
+        <span style={{ fontWeight: 500, fontStyle: isAny ? 'italic' : 'normal' }}>
+          {isAny ? 'any' : item?.label}
+        </span>
+        {!showClear && (
+          <svg width="9" height="9" viewBox="0 0 10 10" style={{ color: 'var(--text-faint)', marginLeft: 1 }}>
+            <path d="M2 4 L5 7 L8 4" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )}
+        {showClear && (
+          <span role="button" onClick={(e) => { e.stopPropagation(); onClear(); }}
+            title={\`Clear \${dimFull.toLowerCase()} pin\`}
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 16, height: 16, marginLeft: 2, borderRadius: 3, color: 'var(--text-faint)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--active)'; e.currentTarget.style.color = 'var(--text)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-faint)'; }}
+          >
+            <svg width="8" height="8" viewBox="0 0 10 10"><path d="M2 2 L8 8 M8 2 L2 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          </span>
+        )}
+      </button>
+      <ListPopover open={open} onClose={() => setOpen(false)} anchorRef={ref}
+        items={items} value={value} onSelect={onChange} includeAny={mode === 'any' || mode === 'set'} />
+    </>
+  );
+}
+
+function CohortRow({ cohort, idx, color, isBase, pinnedDims, onChange, onClearDim, onRemove, canRemove }) {
+  const { PROMPTS, DATASETS, JUDGES } = window.EvalData;
+  const DIMS = [
+    { key: 'prompt', items: PROMPTS, label: 'P', full: 'Prompt' },
+    { key: 'dataset', items: DATASETS, label: 'D', full: 'Dataset' },
+    { key: 'judge', items: JUDGES, label: 'J', full: 'Judge' },
   ];
-  function cohortColor(idx) { return COHORT_COLORS[idx % COHORT_COLORS.length]; }
-  function cohortLabel(cohort) {
-    const dims = pinnedDims();
-    if (dims.length === 0) return "All rows";
-    return dims.map(d => DIM_LABELS[d] + "=" + (cohort[d] ?? "?") + (cohort[d + "Hash"] ? "@" + cohort[d + "Hash"].slice(0, 6) : "")).join(" / ");
-  }
+  const visibleDims = isBase ? DIMS : DIMS.filter(d => pinnedDims.includes(d.key));
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      height: 30, padding: '0 4px 0 8px',
+      background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 8,
+    }}>
+      <span style={{ width: 8, height: 8, borderRadius: 99, background: color, flexShrink: 0, marginRight: 4 }} />
+      <span style={{ fontWeight: 500, fontSize: 12, color: 'var(--text-muted)', marginRight: 2 }}>
+        C{idx + 1}
+      </span>
+      {isBase && (
+        <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', fontWeight: 600, marginRight: 2 }}>
+          base
+        </span>
+      )}
+      <span style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px' }} />
+      {visibleDims.map(d => {
+        const v = cohort[d.key];
+        const mode = isBase ? (v == null ? 'any' : 'set') : 'follower';
+        return (
+          <CohortDimChip key={d.key}
+            items={d.items} value={v} mode={mode}
+            dimLabel={d.label} dimFull={d.full}
+            onChange={val => onChange({ ...cohort, [d.key]: val })}
+            onClear={isBase && v != null ? () => onClearDim(d.key) : null}
+          />
+        );
+      })}
+      {canRemove && !isBase && (
+        <button onClick={onRemove} title="Remove cohort"
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 22, height: 22, marginLeft: 2,
+            background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', color: 'var(--text-faint)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--hover)'; e.currentTarget.style.color = 'var(--text)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-faint)'; }}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 2 L8 8 M8 2 L2 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+        </button>
+      )}
+    </div>
+  );
+}
 
-  function renderMeta() {
-    const m = document.getElementById("meta");
-    const lines = [];
-    if (REPORTS.length === 0) {
-      lines.push('<span class="row">No reports loaded.</span>');
-    } else {
-      lines.push('<span class="row">' + REPORTS.length + ' report(s) loaded across the run directory; runs are not used as a chart axis</span>');
-      const fmtOptions = (dim) => VALUES[dim].map(o => optionLabel(o)).join(", ") || "—";
-      lines.push('<span class="row">prompts: ' + escapeHtml(fmtOptions("promptId")) + '</span>');
-      lines.push('<span class="row">datasets: ' + escapeHtml(fmtOptions("datasetId")) + '</span>');
-      lines.push('<span class="row">judges: ' + escapeHtml(fmtOptions("judgeId")) + '</span>');
+function MetricSelect({ value, onChange }) {
+  const { METRICS } = window.EvalData;
+  const [open, setOpen] = useStateT(false);
+  const ref = useRefT(null);
+  const current = METRICS.find(m => m.id === value);
+  const groups = useMemoT(() => {
+    const map = new Map();
+    for (const m of METRICS) {
+      if (!map.has(m.group)) map.set(m.group, []);
+      map.get(m.group).push(m);
     }
-    m.innerHTML = lines.join("");
-  }
+    return [...map.entries()];
+  }, []);
+  return (
+    <>
+      <button ref={ref} onClick={() => setOpen(o => !o)}
+        style={{
+          ...chipBase, height: 30, padding: '0 12px',
+          background: 'oklch(22% 0.01 240)', color: 'white', borderColor: 'oklch(22% 0.01 240)',
+          fontWeight: 500, gap: 8,
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+          <path d="M2 11 L5 7 L8 9 L12 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        {current?.label}
+        <span style={{ opacity: 0.55, fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>{current?.unit}</span>
+        <svg width="9" height="9" viewBox="0 0 10 10" style={{ opacity: 0.6, marginLeft: 2 }}>
+          <path d="M2 4 L5 7 L8 4" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      <Popover open={open} onClose={() => setOpen(false)} anchorRef={ref} align="end">
+        <div style={{ padding: 4, minWidth: 280 }}>
+          {groups.map(([groupName, list]) => (
+            <div key={groupName} style={{ marginBottom: 4 }}>
+              <div style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', fontWeight: 600, padding: '8px 10px 4px' }}>{groupName}</div>
+              {list.map(m => {
+                const sel = m.id === value;
+                return (
+                  <button key={m.id} onClick={() => { onChange(m.id); setOpen(false); }}
+                    style={{
+                      width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '7px 10px', background: sel ? 'var(--accent-soft)' : 'transparent',
+                      border: 'none', borderRadius: 5, cursor: 'pointer', textAlign: 'left',
+                      fontSize: 13, color: 'var(--text)', gap: 12,
+                    }}
+                    onMouseEnter={e => { if (!sel) e.currentTarget.style.background = 'var(--hover)'; }}
+                    onMouseLeave={e => { if (!sel) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <span>{m.label}</span>
+                    <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>{m.unit}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </Popover>
+    </>
+  );
+}
 
-  function renderCohorts() {
-    const container = document.getElementById("cohorts");
-    const dims = pinnedDims();
-    if (state.cohorts.length === 0) {
-      container.innerHTML = '<div class="empty">No cohorts yet. Add one to start comparing.</div>';
-      return;
-    }
-    container.innerHTML = "";
-    state.cohorts.forEach((cohort, idx) => {
-      const row = document.createElement("div");
-      row.className = "cohort-row";
-      const color = cohortColor(idx);
-      const dimSelects = dims.map(d => {
-        const opts = VALUES[d].map(o => {
-          const sel = (cohort[d] === o.id && (cohort[d + "Hash"] ?? null) === (o.hash ?? null)) ? " selected" : "";
-          return '<option value="' + escapeHtml(o.key) + '"' + sel + ">" + escapeHtml(optionLabel(o)) + "</option>";
-        }).join("");
-        return '<label>' + DIM_LABELS[d] + ': <select data-dim="' + d + '">' + opts + '</select></label>';
-      }).join(" ");
-      const rowCount = qualifyingRowsFor(cohort);
-      const countBadge = rowCount === 0
-        ? '<span class="count empty" title="No row in any loaded report matches this cohort. The combination has not been run, or the pinned hashes filter all reports out.">0 rows</span>'
-        : '<span class="count">' + rowCount + ' rows</span>';
-      row.innerHTML =
-        '<span class="swatch" style="background: ' + color + '"></span>' +
-        '<span class="name">Cohort ' + cohort.id + '</span>' +
-        (dimSelects || '<span style="color: var(--muted); font-style: italic;">(all dims aggregated)</span>') +
-        countBadge +
-        '<button class="remove" data-action="remove">×</button>';
-      row.querySelectorAll("select").forEach(sel => {
-        sel.addEventListener("change", e => {
-          const dim = e.target.dataset.dim;
-          const opt = VALUES[dim].find(o => o.key === e.target.value);
-          if (opt) {
-            cohort[dim] = opt.id;
-            cohort[dim + "Hash"] = opt.hash;
-          }
-          renderCohorts(); // re-render to update the legend label
-          renderCharts();
-        });
+function AddCohortButton({ onClick }) {
+  return (
+    <button onClick={onClick}
+      style={{ ...chipBase, height: 30, padding: '0 10px', borderStyle: 'dashed', color: 'var(--text-muted)', gap: 5 }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'var(--hover)'; e.currentTarget.style.color = 'var(--text)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'var(--panel)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+    >
+      <svg width="11" height="11" viewBox="0 0 11 11"><path d="M5.5 1.5 V9.5 M1.5 5.5 H9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+      Add cohort
+    </button>
+  );
+}
+
+function Toolbar({ state, dispatch }) {
+  const { sampleSize, metric, cohorts } = state;
+  const cohortColors = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)'];
+  const base = cohorts[0];
+  const pinnedDims = ['prompt', 'dataset', 'judge'].filter(k => base[k] != null);
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 14,
+      padding: '10px 18px', background: 'var(--panel)', borderBottom: '1px solid var(--border)',
+      flexWrap: 'wrap', rowGap: 10,
+    }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <SectionLabel info="Each chart point is the mean of sample-size consecutive raw values, gathered newest-first across qualifying reports. 1 = individual values; up to 25 points are shown per cohort.">
+          Sample
+        </SectionLabel>
+        <NumberInput value={sampleSize} onChange={v => dispatch({ type: 'setSampleSize', value: v })} min={1} max={50} width={56} />
+      </div>
+      <Divider />
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <SectionLabel>Metric</SectionLabel>
+        <MetricSelect value={metric} onChange={v => dispatch({ type: 'setMetric', value: v })} />
+      </div>
+      <Divider />
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', rowGap: 6 }}>
+        <SectionLabel info="The first cohort is the base. Set fields to pin them across all cohorts. Unset fields are aggregated. Subsequent cohorts can only override pinned fields.">
+          Cohorts
+        </SectionLabel>
+        {cohorts.map((c, i) => (
+          <CohortRow key={c._id} cohort={c} idx={i}
+            color={cohortColors[i % cohortColors.length]}
+            isBase={i === 0} pinnedDims={pinnedDims}
+            canRemove={cohorts.length > 1}
+            onChange={next => dispatch({ type: 'updateCohort', id: c._id, cohort: next })}
+            onClearDim={dim => dispatch({ type: 'clearBaseDim', dim })}
+            onRemove={() => dispatch({ type: 'removeCohort', id: c._id })}
+          />
+        ))}
+        {cohorts.length < 4 && pinnedDims.length > 0 && (
+          <AddCohortButton onClick={() => dispatch({ type: 'addCohort' })} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Divider() {
+  return <span style={{ width: 1, height: 22, background: 'var(--border)' }} />;
+}
+
+Object.assign(window, { Toolbar });
+</script>
+
+<script type="text/babel" data-presets="react">
+const { useMemo: useMemoC, useState: useStateC, useRef: useRefC, useEffect: useEffectC } = React;
+
+function fmt(v, unit) {
+  if (unit === '\\u0024') return '\\u0024' + v.toFixed(3);
+  if (unit === '%') return (v * 100).toFixed(1) + '%';
+  if (unit === 'ms') return Math.round(v) + ' ms';
+  if (unit === 'tok') return Math.round(v).toLocaleString() + ' tok';
+  if (unit === '0–1') return v.toFixed(3);
+  return v.toFixed(2) + (unit ? ' ' + unit : '');
+}
+
+function Chart({ state }) {
+  const { metric, cohorts, sampleSize } = state;
+  const { METRICS, generateSeries, PROMPTS, DATASETS, JUDGES, MAX_POINTS } = window.EvalData;
+  const metricDef = METRICS.find(m => m.id === metric);
+  const [hoverIdx, setHoverIdx] = useStateC(null);
+  const wrapRef = useRefC(null);
+  const [size, setSize] = useStateC({ w: 1200, h: 520 });
+
+  useEffectC(() => {
+    if (!wrapRef.current) return;
+    let raf = 0;
+    const update = () => {
+      if (!wrapRef.current) return;
+      const cr = wrapRef.current.getBoundingClientRect();
+      setSize(prev => {
+        const nw = Math.max(600, Math.round(cr.width));
+        const nh = Math.max(360, Math.round(cr.height));
+        if (Math.abs(prev.w - nw) < 2 && Math.abs(prev.h - nh) < 2) return prev;
+        return { w: nw, h: nh };
       });
-      row.querySelector('button[data-action="remove"]').addEventListener("click", () => {
-        state.cohorts = state.cohorts.filter(c => c.id !== cohort.id);
-        renderCohorts();
-        renderCharts();
-      });
-      container.appendChild(row);
-    });
-  }
+    };
+    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(update); });
+    ro.observe(wrapRef.current);
+    update();
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); };
+  }, []);
 
-  function renderMetricPicker() {
-    const select = document.getElementById("metric");
-    select.innerHTML = "";
-    Object.entries(METRICS).forEach(([key, def]) => {
-      const opt = document.createElement("option");
-      opt.value = key;
-      opt.textContent = def.label;
-      if (key === state.metric) opt.selected = true;
-      select.appendChild(opt);
-    });
-    select.addEventListener("change", (e) => {
-      state.metric = e.target.value;
-      renderCharts();
-    });
-  }
+  const cohortColors = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)'];
 
-  let chartInstance = null;
-  function destroyChart() {
-    if (chartInstance) {
-      chartInstance.destroy();
-      chartInstance = null;
+  const series = useMemoC(() => {
+    return cohorts.map((c, i) => ({
+      id: c._id,
+      color: cohortColors[i % cohortColors.length],
+      cohort: c,
+      points: generateSeries(c, metric, sampleSize),
+    }));
+  }, [cohorts, metric, sampleSize]);
+
+  const longest = Math.max(0, ...series.map(s => s.points.length));
+  const N = Math.max(1, longest);
+
+  const padding = { top: 28, right: 32, bottom: 56, left: 64 };
+  const W = size.w;
+  const H = size.h;
+  const innerW = W - padding.left - padding.right;
+  const innerH = H - padding.top - padding.bottom;
+
+  const allVals = series.flatMap(s => s.points);
+  let yMin = metricDef.range[0];
+  let yMax = metricDef.range[1];
+  if (allVals.length) {
+    const dataMin = Math.min(...allVals);
+    const dataMax = Math.max(...allVals);
+    const span = dataMax - dataMin;
+    if (span < (yMax - yMin) * 0.5 && span > 0) {
+      const pad = span * 0.3;
+      yMin = Math.max(metricDef.range[0], dataMin - pad);
+      yMax = Math.min(metricDef.range[1], dataMax + pad);
     }
+    if (yMax === yMin) { yMin = Math.max(0, yMin - 0.01); yMax = yMax + 0.01; }
   }
 
-  function renderCharts() {
-    const container = document.getElementById("charts");
-    if (!state.cohorts.length) {
-      container.innerHTML = '<div class="empty">Add at least one cohort to see the chart.</div>';
-      destroyChart();
-      return;
-    }
+  const xAt = (i) => padding.left + (N === 1 ? innerW / 2 : (i / (N - 1)) * innerW);
+  const yAt = (v) => padding.top + innerH - ((v - yMin) / (yMax - yMin)) * innerH;
 
-    container.innerHTML = "";
-    destroyChart();
+  const yTicks = useMemoC(() => {
+    const ticks = [];
+    for (let i = 0; i <= 4; i++) ticks.push(yMin + (i / 4) * (yMax - yMin));
+    return ticks;
+  }, [yMin, yMax]);
 
-    const metricKey = state.metric;
-    {
-      // For each cohort, get an array of bucketed data points (newest-first,
-      // capped at MAX_POINTS). Cohorts may have different lengths; that's
-      // fine — Chart.js renders only as many points as each dataset has,
-      // so a short cohort line ends naturally without being padded.
-      const cohortPoints = state.cohorts.map((c) => dataPointsFor(c, metricKey));
-      const longest = Math.max(0, ...cohortPoints.map((p) => p.length));
+  const xTicks = useMemoC(() => {
+    const out = [];
+    const step = N <= 10 ? 1 : N <= 25 ? 5 : 10;
+    for (let i = 0; i < N; i += step) out.push(i);
+    if (out[out.length - 1] !== N - 1) out.push(N - 1);
+    return out;
+  }, [N]);
 
-      const card = document.createElement("div");
-      card.className = "chart-card";
-      const title = document.createElement("h3");
-      const sampleNote = state.sampleSize > 1
-        ? "sample size " + state.sampleSize
-        : "individual values";
-      title.textContent = METRICS[metricKey].label + " · " + sampleNote +
-        " · longest cohort: " + longest + " pt" + (longest === 1 ? "" : "s") +
-        " (capped at " + MAX_POINTS + ")";
-      card.appendChild(title);
-      const canvas = document.createElement("canvas");
-      card.appendChild(canvas);
-      container.appendChild(card);
+  const onMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    if (px < padding.left || px > W - padding.right) { setHoverIdx(null); return; }
+    const t = (px - padding.left) / innerW;
+    const idx = Math.round(t * (N - 1));
+    setHoverIdx(Math.max(0, Math.min(N - 1, idx)));
+  };
 
-      if (longest === 0) {
-        const note = document.createElement("div");
-        note.className = "empty";
-        note.textContent = "No matching data for this metric — pinned hashes may filter all reports out, or no rows exist for the chosen cohort.";
-        card.appendChild(note);
-        return;
-      }
+  const labelFor = (c) => {
+    const p = c.prompt != null ? PROMPTS.find(x => x.id === c.prompt) : null;
+    const d = c.dataset != null ? DATASETS.find(x => x.id === c.dataset) : null;
+    const j = c.judge != null ? JUDGES.find(x => x.id === c.judge) : null;
+    const parts = [p?.label, d?.label, j?.label].filter(Boolean);
+    return parts.length ? parts.join(' · ') : 'all data';
+  };
 
-      // X-axis labels are just numeric indices. Run order / item ids do not
-      // appear; each X position is "the Nth (newest-first) bucketed value".
-      const labels = Array.from({ length: longest }, (_, i) => String(i + 1));
+  return (
+    <div style={{
+      flex: 1, minHeight: 0, position: 'relative', padding: '20px',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '0 4px 14px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em' }}>{metricDef.label}</h2>
+          <span className="mono" style={{ fontSize: 12, color: 'var(--text-faint)' }}>
+            {metricDef.unit} · {sampleSize === 1 ? 'individual values' : \`mean of \${sampleSize}\`} · longest {longest}/\${MAX_POINTS} pts
+          </span>
+        </div>
+      </div>
 
-      const datasets = state.cohorts.map((cohort, idx) => {
-        const color = cohortColor(idx);
-        return {
-          label: cohortLabel(cohort) + " (" + cohortPoints[idx].length + " pt" + (cohortPoints[idx].length === 1 ? "" : "s") + ")",
-          data: cohortPoints[idx], // intentionally length-N (not padded with nulls)
-          borderColor: color,
-          backgroundColor: color + "33",
-          tension: 0.15,
-          spanGaps: false,
-        };
-      });
+      <div ref={wrapRef} style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
+        {longest === 0 ? (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic' }}>
+            No matching data — pinned hashes filter all reports out, or no rows match the chosen cohort.
+          </div>
+        ) : (
+          <svg width={W} height={H} onMouseMove={onMove} onMouseLeave={() => setHoverIdx(null)}
+            style={{ display: 'block', userSelect: 'none', position: 'absolute', top: 0, left: 0 }}>
+            {yTicks.map((v, i) => (
+              <g key={i}>
+                <line x1={padding.left} x2={W - padding.right} y1={yAt(v)} y2={yAt(v)}
+                  stroke="var(--border)" strokeDasharray={i === 0 ? '0' : '2 4'} strokeWidth={1} />
+                <text x={padding.left - 10} y={yAt(v) + 4} textAnchor="end" fontSize="11"
+                  fill="var(--text-muted)" fontFamily="JetBrains Mono, monospace">{fmt(v, metricDef.unit)}</text>
+              </g>
+            ))}
+            {xTicks.map(i => (
+              <text key={i} x={xAt(i)} y={H - padding.bottom + 18} textAnchor="middle" fontSize="11"
+                fill="var(--text-muted)" fontFamily="JetBrains Mono, monospace">{i + 1}</text>
+            ))}
+            <text x={padding.left + innerW / 2} y={H - padding.bottom + 38} textAnchor="middle"
+              fontSize="10" fill="var(--text-faint)" fontFamily="Inter"
+              style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              data point (newest-first, sample-size mean)
+            </text>
+            <text x={-(padding.top + innerH / 2)} y={16} transform="rotate(-90)" textAnchor="middle"
+              fontSize="10" fill="var(--text-faint)" fontFamily="Inter"
+              style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              {metricDef.label} ({metricDef.unit})
+            </text>
+            {hoverIdx !== null && (
+              <line x1={xAt(hoverIdx)} x2={xAt(hoverIdx)} y1={padding.top} y2={H - padding.bottom}
+                stroke="var(--border-strong)" strokeWidth="1" />
+            )}
+            {series.map(s => {
+              if (s.points.length === 0) return null;
+              const path = s.points.map((v, i) => \`\${i === 0 ? 'M' : 'L'} \${xAt(i).toFixed(2)} \${yAt(v).toFixed(2)}\`).join(' ');
+              return (
+                <g key={s.id}>
+                  <path d={path} fill="none" stroke={s.color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                  {s.points.map((v, i) => (
+                    <circle key={i} cx={xAt(i)} cy={yAt(v)} r={hoverIdx === i ? 4 : 2.2}
+                      fill={s.color} stroke="var(--panel)" strokeWidth={hoverIdx === i ? 1.5 : 0} />
+                  ))}
+                </g>
+              );
+            })}
+          </svg>
+        )}
+        {hoverIdx !== null && longest > 0 && (
+          <div style={{
+            position: 'absolute', left: Math.min(W - 240, xAt(hoverIdx) + 12), top: padding.top + 8,
+            background: 'var(--panel)', border: '1px solid var(--border-strong)', borderRadius: 8,
+            boxShadow: 'var(--shadow-md)', padding: '10px 12px', minWidth: 220, pointerEvents: 'none', fontSize: 12,
+          }}>
+            <div style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600, color: 'var(--text-faint)', marginBottom: 8 }}>
+              Sample {hoverIdx + 1}
+            </div>
+            {series.map(s => (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+                <span style={{ width: 8, height: 8, borderRadius: 99, background: s.color, flexShrink: 0 }} />
+                <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: 11.5 }}>{labelFor(s.cohort)}</span>
+                <span className="mono" style={{ fontWeight: 500, color: 'var(--text)' }}>
+                  {Number.isFinite(s.points[hoverIdx]) ? fmt(s.points[hoverIdx], metricDef.unit) : '—'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-      const ch = new Chart(canvas, {
-        type: "line",
-        data: { labels, datasets },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          interaction: { mode: "index", intersect: false },
-          plugins: {
-            legend: { position: "bottom", labels: { boxWidth: 12 } },
-          },
-          scales: {
-            x: {
-              title: {
-                display: true,
-                text: state.sampleSize > 1
-                  ? "Data point (mean of " + state.sampleSize + ", newest-first)"
-                  : "Data point (newest-first)",
-              },
-              ticks: { autoSkip: true, maxRotation: 0, minRotation: 0 },
-            },
-            y: { title: { display: true, text: METRICS[metricKey].label }, beginAtZero: true },
-          },
-        },
-      });
-      chartInstance = ch;
-    }
+      <div style={{
+        display: 'flex', gap: 16, padding: '14px 4px 0',
+        borderTop: '1px solid var(--border)', marginTop: 4, flexWrap: 'wrap', flexShrink: 0,
+      }}>
+        {series.map((s, i) => {
+          const valid = s.points.filter(v => Number.isFinite(v));
+          const mean = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : NaN;
+          return (
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+              <span style={{ width: 10, height: 2, background: s.color, borderRadius: 1 }} />
+              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>C{i + 1}</span>
+              <span>{labelFor(s.cohort)}</span>
+              <span className="mono" style={{ color: 'var(--text-faint)', fontSize: 11 }}>
+                {valid.length} pt{valid.length === 1 ? '' : 's'}{valid.length > 0 ? \` · avg \${fmt(mean, metricDef.unit)}\` : ''}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { Chart });
+</script>
+
+<script type="text/babel" data-presets="react">
+const { useReducer } = React;
+const { PROMPTS: PROMPTS_A, DATASETS: DATASETS_A, JUDGES: JUDGES_A, METRICS: METRICS_A, REPORTS: REPORTS_A } = window.EvalData;
+
+function pickInitialCohorts() {
+  const baseCohort = { _id: 1 };
+  if (PROMPTS_A.length > 0) baseCohort.prompt = PROMPTS_A[0].id;
+  if (DATASETS_A.length > 0) baseCohort.dataset = DATASETS_A[0].id;
+  const llmJudge = JUDGES_A.find(j => j.hash) ?? JUDGES_A[0];
+  if (llmJudge) baseCohort.judge = llmJudge.id;
+
+  if (PROMPTS_A.length >= 2) {
+    const second = { _id: 2 };
+    second.prompt = PROMPTS_A[1].id;
+    if (baseCohort.dataset) second.dataset = baseCohort.dataset;
+    if (baseCohort.judge) second.judge = baseCohort.judge;
+    return [baseCohort, second];
   }
+  return [baseCohort];
+}
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
+const INITIAL = {
+  sampleSize: 1,
+  metric: 'meanScore',
+  cohorts: pickInitialCohorts(),
+  _nextId: 3,
+};
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Wire up
-  // ──────────────────────────────────────────────────────────────────────────
-  document.querySelectorAll('#pin-controls input[type="checkbox"]').forEach(cb => {
-    cb.addEventListener("change", e => {
-      state.pin[e.target.dataset.dim] = e.target.checked;
-      state.cohorts = []; // shape changed
-      renderCohorts();
-      renderCharts();
-    });
+function reshapeCohorts(cohorts) {
+  if (cohorts.length === 0) return cohorts;
+  const base = cohorts[0];
+  const pinnedDims = ['prompt', 'dataset', 'judge'].filter(k => base[k] != null);
+  return cohorts.map((c, i) => {
+    if (i === 0) return c;
+    const next = { _id: c._id };
+    for (const k of pinnedDims) next[k] = c[k] != null ? c[k] : base[k];
+    return next;
   });
-  document.getElementById("sample-size").addEventListener("change", (e) => {
-    const n = Math.max(1, parseInt(e.target.value, 10) || 1);
-    state.sampleSize = n;
-    e.target.value = String(n);
-    renderCharts();
-  });
-  document.getElementById("add-cohort").addEventListener("click", () => {
-    state.cohorts.push(newCohort());
-    renderCohorts();
-    renderCharts();
-  });
+}
 
-  renderMeta();
-  renderCohorts();
-  renderMetricPicker();
-  renderCharts();
-})();
+function reducer(state, action) {
+  switch (action.type) {
+    case 'setSampleSize': return { ...state, sampleSize: action.value };
+    case 'setMetric': return { ...state, metric: action.value };
+    case 'updateCohort': {
+      const cohorts = state.cohorts.map(c => c._id === action.id ? { ...action.cohort, _id: c._id } : c);
+      return { ...state, cohorts: reshapeCohorts(cohorts) };
+    }
+    case 'clearBaseDim': {
+      const base = { ...state.cohorts[0], [action.dim]: null };
+      const cohorts = [base, ...state.cohorts.slice(1)];
+      return { ...state, cohorts: reshapeCohorts(cohorts) };
+    }
+    case 'addCohort': {
+      const base = state.cohorts[0];
+      const pinnedDims = ['prompt', 'dataset', 'judge'].filter(k => base[k] != null);
+      const next = { _id: state._nextId };
+      for (const k of pinnedDims) next[k] = base[k];
+      return { ...state, cohorts: [...state.cohorts, next], _nextId: state._nextId + 1 };
+    }
+    case 'removeCohort':
+      return { ...state, cohorts: state.cohorts.filter(c => c._id !== action.id) };
+    default: return state;
+  }
+}
+
+function Header() {
+  const stats = [
+    { label: 'reports', value: REPORTS_A.length },
+    { label: 'prompts', value: PROMPTS_A.length },
+    { label: 'datasets', value: DATASETS_A.length },
+    { label: 'judges', value: JUDGES_A.length },
+  ];
+  return (
+    <header style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '12px 18px', borderBottom: '1px solid var(--border)', background: 'var(--panel)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{
+          width: 22, height: 22, borderRadius: 6, background: 'oklch(22% 0.01 240)',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+            <path d="M2 11 L5 7 L8 9 L12 3" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+        <h1 style={{ margin: 0, fontSize: 14, fontWeight: 600, letterSpacing: '-0.005em' }}>Eval Comparison</h1>
+        <span style={{ width: 1, height: 16, background: 'var(--border)' }} />
+        <div style={{ display: 'flex', gap: 14 }}>
+          {stats.map(s => (
+            <div key={s.label} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, fontSize: 12 }}>
+              <span className="mono" style={{ fontWeight: 500 }}>{s.value}</span>
+              <span style={{ color: 'var(--text-faint)' }}>{s.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>/run/comparison</span>
+      </div>
+    </header>
+  );
+}
+
+function App() {
+  const [state, dispatch] = useReducer(reducer, INITIAL);
+  return (
+    <>
+      <Header />
+      <Toolbar state={state} dispatch={dispatch} />
+      <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <Chart state={state} />
+      </main>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 </body>
 </html>`;
