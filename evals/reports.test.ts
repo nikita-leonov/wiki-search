@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   aggregate,
   aggregateForJudge,
+  Aggregator,
   buildSection,
   renderAllReports,
   renderTable,
@@ -268,9 +269,15 @@ describe("buildSection", () => {
     );
   }
 
+  function aggregatorFor(rows: EvalRow[]): Aggregator {
+    const agg = new Aggregator();
+    for (const r of rows) agg.add(r);
+    return agg;
+  }
+
   test("Judges section: primary aggregate followed by leaves, sorted by mean desc", () => {
-    const rows = makeMatrixRows();
-    const section = buildSection(rows, "judgeId", "promptId", "datasetId");
+    const agg = aggregatorFor(makeMatrixRows());
+    const section = buildSection(agg, "judgeId", "promptId", "datasetId");
 
     // citation should rank above correctness (1.0 vs 0.625)
     const primaryRows = section.filter((r) => r.secondary === undefined);
@@ -286,11 +293,95 @@ describe("buildSection", () => {
   });
 
   test("Prompts section: v1 ranks above v0", () => {
-    const rows = makeMatrixRows();
-    const section = buildSection(rows, "promptId", "datasetId", "judgeId");
+    const agg = aggregatorFor(makeMatrixRows());
+    const section = buildSection(agg, "promptId", "datasetId", "judgeId");
     const primaryRows = section.filter((r) => r.secondary === undefined);
     assert.equal(primaryRows[0]?.primary, "v1");
     assert.equal(primaryRows[1]?.primary, "v0");
+  });
+});
+
+describe("Aggregator parity with row-based aggregate", () => {
+  function makeRows(): EvalRow[] {
+    return [
+      makeRow({
+        promptId: "v1",
+        datasetId: "factual",
+        itemId: "1",
+        latencyMs: 1000,
+        costUsd: 0.01,
+        judgeCostUsd: 0.005,
+        judgeScores: [
+          { judgeId: "correctness", score: 1.0, pass: true },
+          { judgeId: "citation", score: 1.0, pass: true },
+        ],
+      }),
+      makeRow({
+        promptId: "v0",
+        datasetId: "factual",
+        itemId: "1",
+        latencyMs: 2000,
+        costUsd: 0.02,
+        judgeCostUsd: 0.003,
+        judgeScores: [
+          { judgeId: "correctness", score: 0.5, pass: false },
+          { judgeId: "citation", score: 1.0, pass: true },
+        ],
+      }),
+    ];
+  }
+
+  test("overall() matches aggregate(rows) for the same input", () => {
+    const rows = makeRows();
+    const direct = aggregate(rows);
+    const a = new Aggregator();
+    for (const r of rows) a.add(r);
+    const streaming = a.overall();
+
+    assert.ok(Math.abs(direct.meanScore - streaming.meanScore) < 1e-9);
+    assert.equal(direct.count, streaming.count);
+    assert.equal(direct.errorCount, streaming.errorCount);
+    assert.equal(direct.totalTokens, streaming.totalTokens);
+    assert.ok(
+      Math.abs(direct.agentCostUsd - streaming.agentCostUsd) < 1e-9,
+      "agentCost mismatch",
+    );
+    assert.ok(
+      Math.abs(direct.judgeCostUsd - streaming.judgeCostUsd) < 1e-9,
+      "judgeCost mismatch",
+    );
+    assert.ok(
+      Math.abs(direct.p50LatencyMs - streaming.p50LatencyMs) < 1e-9,
+    );
+  });
+
+  test("bucket(prompt) matches aggregate of filtered rows", () => {
+    const rows = makeRows();
+    const v1Rows = rows.filter((r) => r.promptId === "v1");
+    const direct = aggregate(v1Rows);
+
+    const a = new Aggregator();
+    for (const r of rows) a.add(r);
+    const streaming = a.bucket("v1");
+
+    assert.ok(Math.abs(direct.meanScore - streaming.meanScore) < 1e-9);
+    assert.equal(direct.count, streaming.count);
+  });
+
+  test("bucket(prompt, dataset, judge) matches aggregateForJudge of filtered rows", () => {
+    const rows = makeRows();
+    const direct = aggregateForJudge(rows, "correctness");
+
+    const a = new Aggregator();
+    for (const r of rows) a.add(r);
+    // The aggregator's "all rows + correctness pin" bucket is bucket(undefined, undefined, "correctness")
+    const streaming = a.bucket(undefined, undefined, "correctness");
+
+    assert.ok(Math.abs(direct.meanScore - streaming.meanScore) < 1e-9);
+    assert.equal(direct.count, streaming.count);
+    assert.ok(
+      Math.abs(direct.judgeCostUsd - streaming.judgeCostUsd) < 1e-9,
+    );
   });
 });
 

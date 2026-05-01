@@ -122,8 +122,10 @@ export function aggregateForJudge(
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Section building — one flat table per primary dimension. Rows are leaves
-// (primary × secondary × tertiary), preceded by a primary aggregate row.
+// Streaming aggregator — updates per row so the report is ready as soon as
+// the matrix finishes. Avoids building large derived row arrays at render
+// time and avoids touching `retrievedContext` (which can be tens of KB per
+// row) during aggregation.
 // ──────────────────────────────────────────────────────────────────────────────
 
 type Dimension = "promptId" | "datasetId" | "judgeId";
@@ -135,96 +137,266 @@ type RenderRow = {
   agg: Aggregate;
 };
 
-function distinctValues(rows: EvalRow[], dim: Dimension): string[] {
-  const set = new Set<string>();
-  if (dim === "judgeId") {
-    for (const r of rows) for (const s of r.judgeScores) set.add(s.judgeId);
-  } else if (dim === "promptId") {
-    for (const r of rows) set.add(r.promptId);
-  } else {
-    for (const r of rows) set.add(r.datasetId);
+class AccumState {
+  count = 0;
+  errorCount = 0;
+  scoreSum = 0;
+  scoreCount = 0;
+  scoreSumByJudge = new Map<string, number>();
+  scoreCountByJudge = new Map<string, number>();
+  passByJudge = new Map<string, { pass: number; total: number }>();
+  latencies: number[] = [];
+  inputTokensSum = 0;
+  cacheReadTokensSum = 0;
+  cacheCreationTokensSum = 0;
+  outputTokensSum = 0;
+  thinkTokensApproxSum = 0;
+  totalTokensSum = 0;
+  cacheHitRateSum = 0;
+  searchesSum = 0;
+  turnsSum = 0;
+  answerCharsSum = 0;
+  citationCountSum = 0;
+  agentCostSum = 0;
+  judgeCostSum = 0;
+
+  constructor(private readonly pinnedJudge?: string) {}
+
+  add(row: EvalRow): void {
+    this.count++;
+    if (row.error) {
+      this.errorCount++;
+      return;
+    }
+
+    const scores = this.pinnedJudge
+      ? row.judgeScores.filter((s) => s.judgeId === this.pinnedJudge)
+      : row.judgeScores;
+
+    for (const s of scores) {
+      this.scoreSum += s.score;
+      this.scoreCount++;
+      this.scoreSumByJudge.set(
+        s.judgeId,
+        (this.scoreSumByJudge.get(s.judgeId) ?? 0) + s.score,
+      );
+      this.scoreCountByJudge.set(
+        s.judgeId,
+        (this.scoreCountByJudge.get(s.judgeId) ?? 0) + 1,
+      );
+      if (s.pass !== undefined) {
+        const cur = this.passByJudge.get(s.judgeId) ?? { pass: 0, total: 0 };
+        cur.total++;
+        if (s.pass) cur.pass++;
+        this.passByJudge.set(s.judgeId, cur);
+      }
+    }
+
+    this.latencies.push(row.latencyMs);
+    this.inputTokensSum += row.usage.inputTokens;
+    this.cacheReadTokensSum += row.usage.cacheReadTokens;
+    this.cacheCreationTokensSum += row.usage.cacheCreationTokens;
+    this.outputTokensSum += row.usage.outputTokens;
+    this.thinkTokensApproxSum += row.usage.thinkTokensApprox;
+    this.totalTokensSum += row.usage.totalTokens;
+    this.cacheHitRateSum += row.usage.cacheHitRate;
+    this.searchesSum += row.searches;
+    this.turnsSum += row.turns;
+    this.answerCharsSum += row.answerChars;
+    this.citationCountSum += row.citationCount;
+    this.agentCostSum += row.costUsd;
+
+    if (this.pinnedJudge) {
+      const score = row.judgeScores.find(
+        (s) => s.judgeId === this.pinnedJudge,
+      );
+      this.judgeCostSum += score?.usage?.costUsd ?? 0;
+    } else {
+      this.judgeCostSum += row.judgeCostUsd;
+    }
   }
-  return [...set];
+
+  toAggregate(): Aggregate {
+    const okCount = this.count - this.errorCount;
+    const safeDivOk = (sum: number) => (okCount > 0 ? sum / okCount : 0);
+
+    const meanScore =
+      this.scoreCount > 0 ? this.scoreSum / this.scoreCount : 0;
+
+    const meanScoreByJudge: Record<string, number> = {};
+    for (const [j, sum] of this.scoreSumByJudge) {
+      const cnt = this.scoreCountByJudge.get(j) ?? 1;
+      meanScoreByJudge[j] = sum / cnt;
+    }
+    const passRateByJudge: Record<string, number> = {};
+    for (const [j, { pass, total }] of this.passByJudge) {
+      passRateByJudge[j] = total > 0 ? pass / total : 0;
+    }
+
+    const sortedLatencies = [...this.latencies].sort((a, b) => a - b);
+    const meanLatency =
+      this.latencies.length > 0
+        ? this.latencies.reduce((s, v) => s + v, 0) / this.latencies.length
+        : 0;
+
+    return {
+      count: this.count,
+      errorCount: this.errorCount,
+      meanScore,
+      meanScoreByJudge,
+      passRateByJudge,
+      meanLatencyMs: meanLatency,
+      p50LatencyMs: percentile(sortedLatencies, 50),
+      p95LatencyMs: percentile(sortedLatencies, 95),
+      totalTokens: this.totalTokensSum,
+      meanInputTokens: safeDivOk(this.inputTokensSum),
+      meanOutputTokens: safeDivOk(this.outputTokensSum),
+      meanCacheReadTokens: safeDivOk(this.cacheReadTokensSum),
+      meanCacheCreationTokens: safeDivOk(this.cacheCreationTokensSum),
+      meanThinkTokensApprox: safeDivOk(this.thinkTokensApproxSum),
+      meanCacheHitRate: safeDivOk(this.cacheHitRateSum),
+      meanSearches: safeDivOk(this.searchesSum),
+      meanTurns: safeDivOk(this.turnsSum),
+      meanAnswerChars: safeDivOk(this.answerCharsSum),
+      meanCitationCount: safeDivOk(this.citationCountSum),
+      agentCostUsd: this.agentCostSum,
+      judgeCostUsd: this.judgeCostSum,
+      totalCostUsd: this.agentCostSum + this.judgeCostSum,
+    };
+  }
 }
 
-function filterByDim(
-  rows: EvalRow[],
-  dim: Dimension,
-  value: string,
-): EvalRow[] {
-  if (dim === "judgeId") {
-    return rows.filter((r) =>
-      r.judgeScores.some((s) => s.judgeId === value),
+const EMPTY_AGGREGATE: Aggregate = new AccumState().toAggregate();
+
+export class Aggregator {
+  private buckets = new Map<string, AccumState>();
+  private prompts = new Set<string>();
+  private datasets = new Set<string>();
+  private judges = new Set<string>();
+
+  /** Include this row in every bucket it belongs to. */
+  add(row: EvalRow): void {
+    this.prompts.add(row.promptId);
+    this.datasets.add(row.datasetId);
+    for (const s of row.judgeScores) this.judges.add(s.judgeId);
+
+    // Build the unique set of (key, pinnedJudge) pairs this row updates.
+    // Same key can be reached via multiple report sections; dedupe so each
+    // accumulator gets `add(row)` called exactly once.
+    const updates = new Map<string, string | undefined>();
+
+    // Cross-judge buckets (judge unpinned).
+    updates.set(this.key(), undefined);
+    updates.set(this.key(row.promptId), undefined);
+    updates.set(this.key(undefined, row.datasetId), undefined);
+    updates.set(this.key(row.promptId, row.datasetId), undefined);
+
+    // Judge-pinned buckets — one per judge that scored this row.
+    for (const s of row.judgeScores) {
+      const j = s.judgeId;
+      updates.set(this.key(undefined, undefined, j), j);
+      updates.set(this.key(row.promptId, undefined, j), j);
+      updates.set(this.key(undefined, row.datasetId, j), j);
+      updates.set(this.key(row.promptId, row.datasetId, j), j);
+    }
+
+    for (const [key, pin] of updates) {
+      let state = this.buckets.get(key);
+      if (!state) {
+        state = new AccumState(pin);
+        this.buckets.set(key, state);
+      }
+      state.add(row);
+    }
+  }
+
+  overall(): Aggregate {
+    return this.buckets.get(this.key())?.toAggregate() ?? EMPTY_AGGREGATE;
+  }
+
+  bucket(promptId?: string, datasetId?: string, judgeId?: string): Aggregate {
+    return (
+      this.buckets.get(this.key(promptId, datasetId, judgeId))?.toAggregate() ??
+      EMPTY_AGGREGATE
     );
   }
-  if (dim === "promptId") return rows.filter((r) => r.promptId === value);
-  return rows.filter((r) => r.datasetId === value);
+
+  distinctPrompts(): string[] {
+    return [...this.prompts];
+  }
+  distinctDatasets(): string[] {
+    return [...this.datasets];
+  }
+  distinctJudges(): string[] {
+    return [...this.judges];
+  }
+
+  private key(p?: string, d?: string, j?: string): string {
+    return `${p ?? "*"}|${d ?? "*"}|${j ?? "*"}`;
+  }
 }
 
-function pickJudgePin(
+function distinctForDim(agg: Aggregator, dim: Dimension): string[] {
+  if (dim === "promptId") return agg.distinctPrompts();
+  if (dim === "datasetId") return agg.distinctDatasets();
+  return agg.distinctJudges();
+}
+
+function lookupAgg(
+  agg: Aggregator,
   primary: Dimension,
-  secondary: Dimension,
-  tertiary: Dimension,
   pVal: string,
-  sVal: string,
-  tVal: string,
-): string | undefined {
-  if (primary === "judgeId") return pVal;
-  if (secondary === "judgeId") return sVal;
-  if (tertiary === "judgeId") return tVal;
-  return undefined;
-}
-
-function aggForCell(rows: EvalRow[], judgePin: string | undefined): Aggregate {
-  return judgePin ? aggregateForJudge(rows, judgePin) : aggregate(rows);
+  secondary?: Dimension,
+  sVal?: string,
+  tertiary?: Dimension,
+  tVal?: string,
+): Aggregate {
+  let prompt: string | undefined;
+  let dataset: string | undefined;
+  let judge: string | undefined;
+  const set = (dim: Dimension, val: string) => {
+    if (dim === "promptId") prompt = val;
+    else if (dim === "datasetId") dataset = val;
+    else judge = val;
+  };
+  set(primary, pVal);
+  if (secondary && sVal !== undefined) set(secondary, sVal);
+  if (tertiary && tVal !== undefined) set(tertiary, tVal);
+  return agg.bucket(prompt, dataset, judge);
 }
 
 function buildSection(
-  rows: EvalRow[],
+  agg: Aggregator,
   primary: Dimension,
   secondary: Dimension,
   tertiary: Dimension,
 ): RenderRow[] {
   const out: RenderRow[] = [];
 
-  const primaryEntries = distinctValues(rows, primary)
-    .map((pVal) => {
-      const pRows = filterByDim(rows, primary, pVal);
-      const judgePin = primary === "judgeId" ? pVal : undefined;
-      return { pVal, pRows, agg: aggForCell(pRows, judgePin) };
-    })
+  const primaryEntries = distinctForDim(agg, primary)
+    .map((pVal) => ({ pVal, agg: lookupAgg(agg, primary, pVal) }))
     .sort((a, b) => b.agg.meanScore - a.agg.meanScore);
 
-  for (const { pVal, pRows, agg: pAgg } of primaryEntries) {
+  for (const { pVal, agg: pAgg } of primaryEntries) {
     out.push({ primary: pVal, agg: pAgg });
 
-    const secondaryEntries = distinctValues(pRows, secondary)
-      .map((sVal) => {
-        const sRows = filterByDim(pRows, secondary, sVal);
-        const judgePin =
-          primary === "judgeId"
-            ? pVal
-            : secondary === "judgeId"
-              ? sVal
-              : undefined;
-        return { sVal, sRows, agg: aggForCell(sRows, judgePin) };
-      })
+    const secondaryEntries = distinctForDim(agg, secondary)
+      .map((sVal) => ({
+        sVal,
+        agg: lookupAgg(agg, primary, pVal, secondary, sVal),
+      }))
+      // Drop empty secondary buckets that may exist when a (primary, secondary)
+      // combination has no rows (e.g., a dataset with no items).
+      .filter((entry) => entry.agg.count > 0)
       .sort((a, b) => b.agg.meanScore - a.agg.meanScore);
 
-    for (const { sVal, sRows } of secondaryEntries) {
-      const tertiaryEntries = distinctValues(sRows, tertiary)
-        .map((tVal) => {
-          const tRows = filterByDim(sRows, tertiary, tVal);
-          const judgePin = pickJudgePin(
-            primary,
-            secondary,
-            tertiary,
-            pVal,
-            sVal,
-            tVal,
-          );
-          return { tVal, agg: aggForCell(tRows, judgePin) };
-        })
+    for (const { sVal } of secondaryEntries) {
+      const tertiaryEntries = distinctForDim(agg, tertiary)
+        .map((tVal) => ({
+          tVal,
+          agg: lookupAgg(agg, primary, pVal, secondary, sVal, tertiary, tVal),
+        }))
+        .filter((entry) => entry.agg.count > 0)
         .sort((a, b) => b.agg.meanScore - a.agg.meanScore);
 
       for (const { tVal, agg: leafAgg } of tertiaryEntries) {
@@ -355,10 +527,22 @@ export type ReportMeta = {
 
 export function renderAllReports(
   config: EvalRunConfig,
-  rows: EvalRow[],
+  source: EvalRow[] | Aggregator,
   meta?: ReportMeta,
 ): string {
-  const overall = aggregate(rows);
+  // Accept either a row list (for tests / preview / legacy callers) or a
+  // pre-populated Aggregator (cli.ts streams rows into it during the run, so
+  // rendering at end-of-run is essentially free).
+  const agg =
+    source instanceof Aggregator
+      ? source
+      : (() => {
+          const a = new Aggregator();
+          for (const r of source) a.add(r);
+          return a;
+        })();
+
+  const overall = agg.overall();
   const lines: string[] = [];
 
   lines.push("Eval Report");
@@ -416,9 +600,9 @@ export function renderAllReports(
   lines.push("");
 
   const sections: Array<[string, RenderRow[]]> = [
-    ["Judges", buildSection(rows, "judgeId", "promptId", "datasetId")],
-    ["Prompts", buildSection(rows, "promptId", "datasetId", "judgeId")],
-    ["Datasets", buildSection(rows, "datasetId", "judgeId", "promptId")],
+    ["Judges", buildSection(agg, "judgeId", "promptId", "datasetId")],
+    ["Prompts", buildSection(agg, "promptId", "datasetId", "judgeId")],
+    ["Datasets", buildSection(agg, "datasetId", "judgeId", "promptId")],
   ];
 
   for (const [name, sectionRows] of sections) {

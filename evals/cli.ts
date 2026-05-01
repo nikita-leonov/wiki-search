@@ -9,7 +9,7 @@ import {
   ProgressDisplay,
   runMatrix,
 } from "./runner.ts";
-import { renderAllReports } from "./reports.ts";
+import { Aggregator, renderAllReports } from "./reports.ts";
 import {
   listDatasetIds,
   listPromptIds,
@@ -235,10 +235,15 @@ async function main(): Promise<void> {
   // Truncate the log; we'll append per row.
   writeFileSync(logPath, "");
 
+  // Stream every completed row into the aggregator so the summary is fully
+  // computed by the time the run finishes — no big sweep at the end.
+  const aggregator = new Aggregator();
+
   const rows = await runMatrix(config, matrix, {
     apiKey,
     onRow: (row, completed) => {
       progress.update(row, completed);
+      aggregator.add(row);
       writeFileSync(logPath, JSON.stringify(row) + "\n", { flag: "a" });
     },
   });
@@ -249,16 +254,18 @@ async function main(): Promise<void> {
 
   // Write structured results. `runAt` lives both in the filename (so the
   // file is self-identifying when shared) and inside the JSON (so tooling
-  // can correlate runs without depending on filenames).
+  // can correlate runs without depending on filenames). Not pretty-printed:
+  // pretty-printing 1–10 MB of rows is needlessly slow, and tooling can
+  // reformat on demand. log-<ts>.jsonl is the human-tail-friendly view.
   writeFileSync(
     reportJsonPath,
-    JSON.stringify({ runAt, runDurationMs, config, rows }, null, 2),
+    JSON.stringify({ runAt, runDurationMs, config, rows }),
   );
 
   // Render the report for stdout only — the JSON is the persistent artifact;
   // markdown is for human consumption right now. Capture via shell redirect
   // (`npm run eval > report.md`) if you want to keep it.
-  const md = renderAllReports(config, rows, meta);
+  const md = renderAllReports(config, aggregator, meta);
   process.stdout.write("\n" + md + "\n");
   process.stderr.write(`\nResults written to: ${reportJsonPath}\n`);
 }
