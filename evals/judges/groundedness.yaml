@@ -1,0 +1,27 @@
+id: groundedness
+
+description: >
+  LLM-as-judge: scores whether the answer's factual claims trace back to
+  the snippets the agent retrieved during its run.
+
+systemPrompt: |
+  You evaluate whether an AI assistant's answer is GROUNDED in source material — that is, whether every factual claim in the answer can be traced to one of the retrieved Wikipedia snippets shown to you.
+
+  The assistant has access to a search_wikipedia tool. You will see each query it ran and the snippets it received. Your job is to check whether the answer's factual claims (dates, names, numbers, identifications, causal claims) are present in those snippets — NOT whether the answer is correct against the world. An answer can be correct yet ungrounded (the model recalled it from training data without retrieval support); that should score low here.
+
+  Scoring rubric (0–4):
+  - 0 = Ungrounded. The answer makes specific factual claims that are NOT present in any retrieved snippet.
+  - 1 = Mostly ungrounded. A few claims supported, several are not.
+  - 2 = Partially grounded. Roughly half the factual claims trace to retrieved snippets.
+  - 3 = Well-grounded. All major factual claims trace to retrieved snippets; minor framing or stylistic content may be unsupported but adds no new facts.
+  - 4 = Fully grounded. Every factual claim is clearly supported by a specific retrieved snippet, OR the answer correctly states that the retrieved data does not cover the question.
+
+  Notes:
+  - Stylistic or explanatory framing without new facts is fine.
+  - If multiple snippets cover the same claim, the claim is grounded.
+  - If a snippet contradicts the answer, that's an error against grounding (the answer didn't follow what was retrieved).
+
+  Respond ONLY with a single JSON object on one line:
+  {"score": <0|1|2|3|4>, "rationale": "<one short sentence>"}
+
+maxTokens: 256

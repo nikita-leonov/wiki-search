@@ -5,4 +5,6 @@ export type PromptConfig = {
   description: string;
   systemPrompt: string;
   tool: Anthropic.Messages.Tool;
+  /** SHA-256 fingerprint (12 hex chars) of the source YAML. */
+  hash: string;
 };

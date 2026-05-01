@@ -32,9 +32,12 @@ This is the only check that costs money and isn't deterministic, so don't loop o
 
 ## Code conventions
 
-- **Prompts live only in `src/prompts/`.** Each variant is a separate file (`v1.ts`, `v0.ts`, …) and is registered in `src/prompts/index.ts`. The CLI and the eval suite both consume this registry — never duplicate prompt strings elsewhere.
+- **Prompts are externalized YAML.** Each variant is `src/prompts/<id>.yaml` and is auto-discovered by `src/prompts/index.ts`. Add a new YAML file to add a new prompt — no registration step. The CLI and the eval suite both consume this registry; never duplicate prompt strings elsewhere.
+- **LLM judge rubrics are externalized YAML.** Each LLM judge has a YAML file under `evals/judges/` carrying its `systemPrompt`. Code in `evals/judges.ts` constructs the user message and parses the JSON response. Heuristic judges (e.g. citation) stay code-only.
+- **Datasets are externalized JSON.** Each dataset is `evals/datasets/<id>.json` and is auto-discovered by `evals/registry.ts`. Each item: `{id, question, gold?, notes?}`.
+- **Artifact hashes get recorded per run.** Every prompt YAML, judge YAML, and dataset JSON has a 12-hex-char SHA-256 fingerprint computed at load time. The eval CLI writes these into `report-<ts>.json` under `artifacts.{prompts,judges,datasets}` so a run is pinned to specific artifact versions even if the files later change.
 - **Agent stays prompt-agnostic.** `src/agent.ts` accepts a `PromptConfig` via options. Don't embed system prompts or tool schemas in `agent.ts`.
-- **Minimal runtime dependencies.** The repo currently has one (`@anthropic-ai/sdk`). Justify any addition; prefer a tiny hand-rolled module (see `src/loadEnv.ts`) over a dep.
+- **Minimal runtime dependencies.** The repo has two (`@anthropic-ai/sdk`, `yaml`). Justify any addition; prefer a tiny hand-rolled module (see `src/loadEnv.ts`, `src/hash.ts`) over a dep.
 - **Strict TypeScript.** `noUncheckedIndexedAccess` is on; respect it. No `any` unless interacting with the SDK's loosely-typed tool inputs, and even there narrow as soon as possible.
 
 ## Repository tone
@@ -45,4 +48,4 @@ This is a public open-source project. Don't introduce framing in committed files
 
 - Commit when self-contained pieces of work land cleanly. Don't commit broken state.
 - Don't push to the remote unless explicitly asked.
-- When introducing a new prompt variant, add it to `src/prompts/`, register it in `index.ts`, and (once evals exist) include it in the eval matrix so it gets measured.
+- When introducing a new prompt variant, drop a YAML file in `src/prompts/` (auto-registered) and add the id to `evals/config.json` so the eval matrix picks it up.

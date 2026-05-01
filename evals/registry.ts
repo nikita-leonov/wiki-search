@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -8,6 +8,7 @@ import {
   listPromptIds,
   type PromptConfig,
 } from "../src/prompts/index.ts";
+import { shortHash } from "../src/hash.ts";
 
 import type { Dataset, DatasetItem } from "./types.ts";
 import { JUDGES, getJudge, listJudgeIds, type Judge } from "./judges.ts";
@@ -15,91 +16,98 @@ import { JUDGES, getJudge, listJudgeIds, type Judge } from "./judges.ts";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATASETS_DIR = join(__dirname, "datasets");
 
-const KNOWN_DATASETS: Record<string, { description: string; file: string }> = {
-  factual: {
-    description: "Clear-gold factual lookups (single-answer questions).",
-    file: "factual.jsonl",
-  },
-  ambiguous: {
-    description:
-      "Questions about ambiguous terms — agent must pick the right sense.",
-    file: "ambiguous.jsonl",
-  },
-  multihop: {
-    description:
-      "Multi-part questions that require combining or comparing facts.",
-    file: "multihop.jsonl",
-  },
-};
+function discoverDatasets(): Map<string, Dataset> {
+  const out = new Map<string, Dataset>();
+  const files = readdirSync(DATASETS_DIR).filter((f) => f.endsWith(".json"));
+  for (const file of files) {
+    const ds = parseDatasetFile(join(DATASETS_DIR, file));
+    if (out.has(ds.id)) {
+      throw new Error(
+        `duplicate dataset id "${ds.id}" (defined in ${file} and another file)`,
+      );
+    }
+    out.set(ds.id, ds);
+  }
+  return out;
+}
 
-const datasetCache = new Map<string, Dataset>();
+export function parseDatasetFile(path: string): Dataset {
+  const content = readFileSync(path, "utf-8");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch (err) {
+    throw new Error(
+      `${path}: invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  return normalizeDataset(parsed, path, content);
+}
+
+export function normalizeDataset(
+  raw: unknown,
+  source: string,
+  contentForHash: string,
+): Dataset {
+  const data = raw as Partial<Dataset> & { items?: unknown };
+  if (typeof data.id !== "string" || !data.id) {
+    throw new Error(`${source}: dataset missing string "id"`);
+  }
+  if (typeof data.description !== "string") {
+    throw new Error(`${source}: dataset missing string "description"`);
+  }
+  if (!Array.isArray(data.items)) {
+    throw new Error(`${source}: dataset missing array "items"`);
+  }
+
+  const items: DatasetItem[] = [];
+  const seen = new Set<string>();
+  data.items.forEach((rawItem, idx) => {
+    const it = rawItem as Partial<DatasetItem>;
+    if (typeof it.id !== "string" || !it.id) {
+      throw new Error(
+        `${source}: item at index ${idx} missing string "id"`,
+      );
+    }
+    if (typeof it.question !== "string" || !it.question) {
+      throw new Error(
+        `${source}: item "${it.id}" (index ${idx}) missing string "question"`,
+      );
+    }
+    if (seen.has(it.id)) {
+      throw new Error(`${source}: duplicate item id "${it.id}"`);
+    }
+    seen.add(it.id);
+    items.push({
+      id: it.id,
+      question: it.question,
+      gold: typeof it.gold === "string" ? it.gold : undefined,
+      notes: typeof it.notes === "string" ? it.notes : undefined,
+    });
+  });
+
+  return {
+    id: data.id,
+    description: data.description,
+    items,
+    hash: shortHash(contentForHash),
+  };
+}
+
+const DATASETS = discoverDatasets();
 
 export function loadDataset(id: string): Dataset {
-  const cached = datasetCache.get(id);
-  if (cached) return cached;
-
-  const meta = KNOWN_DATASETS[id];
-  if (!meta) {
+  const ds = DATASETS.get(id);
+  if (!ds) {
     throw new Error(
       `Unknown dataset id "${id}". Available: ${listDatasetIds().join(", ")}`,
     );
   }
-
-  const path = join(DATASETS_DIR, meta.file);
-  const content = readFileSync(path, "utf-8");
-  const items = parseJsonl(content, path);
-
-  const dataset: Dataset = {
-    id,
-    description: meta.description,
-    items,
-  };
-  datasetCache.set(id, dataset);
-  return dataset;
+  return ds;
 }
 
 export function listDatasetIds(): string[] {
-  return Object.keys(KNOWN_DATASETS);
-}
-
-export function parseJsonl(content: string, path: string): DatasetItem[] {
-  const items: DatasetItem[] = [];
-  const seen = new Set<string>();
-  const lines = content.split(/\r?\n/);
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!.trim();
-    if (!line || line.startsWith("#")) continue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(line);
-    } catch (err) {
-      throw new Error(
-        `${path}:${i + 1} — invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-    const item = parsed as Partial<DatasetItem>;
-    if (typeof item.id !== "string" || !item.id) {
-      throw new Error(`${path}:${i + 1} — item missing string "id"`);
-    }
-    if (typeof item.question !== "string" || !item.question) {
-      throw new Error(
-        `${path}:${i + 1} — item "${item.id}" missing string "question"`,
-      );
-    }
-    if (seen.has(item.id)) {
-      throw new Error(
-        `${path}:${i + 1} — duplicate item id "${item.id}" within dataset`,
-      );
-    }
-    seen.add(item.id);
-    items.push({
-      id: item.id,
-      question: item.question,
-      gold: typeof item.gold === "string" ? item.gold : undefined,
-      notes: typeof item.notes === "string" ? item.notes : undefined,
-    });
-  }
-  return items;
+  return [...DATASETS.keys()].sort();
 }
 
 // Re-export the prompt + judge resolution helpers so the runner has one place

@@ -24,6 +24,8 @@ export type Dataset = {
   id: string;
   description: string;
   items: DatasetItem[];
+  /** SHA-256 fingerprint (12 hex chars) of the source JSON. */
+  hash: string;
 };
 
 export type JudgeScore = {

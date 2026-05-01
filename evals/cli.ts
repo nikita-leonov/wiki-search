@@ -11,11 +11,37 @@ import {
 } from "./runner.ts";
 import { Aggregator, renderAllReports } from "./reports.ts";
 import {
+  getJudge,
+  getPrompt,
   listDatasetIds,
-  listPromptIds,
   listJudgeIds,
+  listPromptIds,
+  loadDataset,
 } from "./registry.ts";
 import type { EvalRunConfig } from "./types.ts";
+
+type ArtifactHashes = {
+  prompts: Record<string, string>;
+  judges: Record<string, string>;
+  datasets: Record<string, string>;
+};
+
+function collectArtifactHashes(config: EvalRunConfig): ArtifactHashes {
+  const prompts: Record<string, string> = {};
+  for (const id of config.prompts) prompts[id] = getPrompt(id).hash;
+
+  const judges: Record<string, string> = {};
+  for (const id of config.judges) {
+    const h = getJudge(id).hash;
+    // Code-only judges (e.g. citation) have no artifact file → no hash.
+    if (h) judges[id] = h;
+  }
+
+  const datasets: Record<string, string> = {};
+  for (const id of config.datasets) datasets[id] = loadDataset(id).hash;
+
+  return { prompts, judges, datasets };
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CONFIG_PATH = join(__dirname, "config.json");
@@ -250,16 +276,21 @@ async function main(): Promise<void> {
   progress.finish();
 
   const runDurationMs = Date.now() - startedAt;
-  const meta = { runAt, runDurationMs };
+  const artifacts = collectArtifactHashes(config);
+  const meta = { runAt, runDurationMs, artifacts };
 
   // Write structured results. `runAt` lives both in the filename (so the
   // file is self-identifying when shared) and inside the JSON (so tooling
-  // can correlate runs without depending on filenames). Not pretty-printed:
-  // pretty-printing 1–10 MB of rows is needlessly slow, and tooling can
-  // reformat on demand. log-<ts>.jsonl is the human-tail-friendly view.
+  // can correlate runs without depending on filenames). `artifacts`
+  // records the hash of every prompt / judge YAML and dataset JSON used,
+  // so a future tool can pin a run to the exact artifact versions it
+  // consumed — even if the files have since been edited.
+  // Not pretty-printed: pretty-printing 1–10 MB of rows is needlessly slow,
+  // and tooling can reformat on demand. log-<ts>.jsonl is the human-tail-
+  // friendly view.
   writeFileSync(
     reportJsonPath,
-    JSON.stringify({ runAt, runDurationMs, config, rows }),
+    JSON.stringify({ runAt, runDurationMs, artifacts, config, rows }),
   );
 
   // Render the report for stdout only — the JSON is the persistent artifact;

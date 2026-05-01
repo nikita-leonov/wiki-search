@@ -140,5 +140,14 @@ const rows = syntheticRows();
 const out = renderAllReports(config, rows, {
   runAt: new Date().toISOString(),
   runDurationMs: 142_000,
+  artifacts: {
+    prompts: { v0: "abc123def456", v1: "1234567890ab" },
+    judges: { correctness: "fedcba987654", groundedness: "0011223344aa" },
+    datasets: {
+      factual: "deadbeef0001",
+      ambiguous: "deadbeef0002",
+      multihop: "deadbeef0003",
+    },
+  },
 });
 process.stdout.write(out + "\n");

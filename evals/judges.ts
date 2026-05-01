@@ -1,8 +1,17 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import Anthropic from "@anthropic-ai/sdk";
+import { parse as parseYaml } from "yaml";
 
 import type { RetrievedContext } from "../src/agent.ts";
+import { shortHash } from "../src/hash.ts";
 import { estimateJudgeCost } from "./cost.ts";
 import type { JudgeScore } from "./types.ts";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const JUDGES_DIR = join(__dirname, "judges");
 
 function judgeUsage(
   response: Anthropic.Messages.Message,
@@ -35,11 +44,50 @@ export type Judge = {
   description: string;
   /** True if this judge calls the Anthropic API (used for cost reporting). */
   usesApi: boolean;
+  /** SHA-256 fingerprint (12 hex chars) of the source YAML; absent for code-only judges. */
+  hash?: string;
   judge: JudgeFn;
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Citation judge — deterministic heuristic, no API call
+// YAML rubric loader for LLM judges
+// ──────────────────────────────────────────────────────────────────────────────
+
+type Rubric = {
+  id: string;
+  description: string;
+  systemPrompt: string;
+  maxTokens: number;
+  hash: string;
+};
+
+function loadRubric(filename: string): Rubric {
+  const path = join(JUDGES_DIR, filename);
+  const content = readFileSync(path, "utf-8");
+  const data = parseYaml(content) as Partial<Rubric>;
+  if (typeof data.id !== "string" || !data.id) {
+    throw new Error(`${filename}: missing string "id"`);
+  }
+  if (typeof data.systemPrompt !== "string" || !data.systemPrompt) {
+    throw new Error(`${filename}: missing string "systemPrompt"`);
+  }
+  if (typeof data.description !== "string") {
+    throw new Error(`${filename}: missing string "description"`);
+  }
+  return {
+    id: data.id,
+    description: data.description,
+    systemPrompt: data.systemPrompt,
+    maxTokens: typeof data.maxTokens === "number" ? data.maxTokens : 256,
+    hash: shortHash(content),
+  };
+}
+
+const correctnessRubric = loadRubric("correctness.yaml");
+const groundednessRubric = loadRubric("groundedness.yaml");
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Citation judge — deterministic heuristic, no API call, no YAML
 // ──────────────────────────────────────────────────────────────────────────────
 
 const WIKI_URL_RE = /https?:\/\/[a-z]{2,3}\.wikipedia\.org\/wiki\/[^\s)\]>"']+/gi;
@@ -70,22 +118,8 @@ const citationJudge: Judge = {
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Correctness judge — LLM-as-judge against gold answer
+// Shared LLM-judge helpers
 // ──────────────────────────────────────────────────────────────────────────────
-
-const CORRECTNESS_RUBRIC = `You evaluate whether an AI assistant's answer to a question is factually correct, using a reference "gold" answer as ground truth.
-
-Score the candidate answer on a 0–4 rubric:
-- 0 = Wrong. Contradicts the gold answer or is meaningfully incorrect.
-- 1 = Mostly wrong. Some correct elements but significant errors.
-- 2 = Partially correct. Core fact roughly right but details off, missing, or hedged in misleading ways.
-- 3 = Correct. Core fact matches the gold answer; minor stylistic differences are fine.
-- 4 = Correct and complete. Core fact right AND adds appropriate nuance, citations, or context beyond the gold answer.
-
-Be strict but fair. Do not penalize a candidate for adding correct extra detail. Do penalize hallucinated facts even if the main answer is right.
-
-Respond ONLY with a single JSON object on one line:
-{"score": <0|1|2|3|4>, "rationale": "<one short sentence>"}`;
 
 function parseJudgeJson(
   text: string,
@@ -108,15 +142,67 @@ function parseJudgeJson(
   }
 }
 
+async function callLlmJudge(
+  rubric: Rubric,
+  userMessage: string,
+  ctx: JudgeContext,
+): Promise<{
+  text: string;
+  usage: ReturnType<typeof judgeUsage>;
+}> {
+  const client = new Anthropic({ apiKey: ctx.apiKey });
+  const response = await client.messages.create({
+    model: ctx.judgeModel,
+    max_tokens: rubric.maxTokens,
+    system: rubric.systemPrompt,
+    messages: [{ role: "user", content: userMessage }],
+  });
+  const usage = judgeUsage(response, ctx.judgeModel);
+  const text = response.content
+    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+  return { text, usage };
+}
+
+function buildJudgeScore(
+  judgeId: string,
+  text: string,
+  usage: ReturnType<typeof judgeUsage>,
+): JudgeScore {
+  const parsed = parseJudgeJson(text);
+  if (!parsed) {
+    return {
+      judgeId,
+      score: 0,
+      rationale: `judge could not parse JSON; raw: ${text.slice(0, 120)}`,
+      usage,
+    };
+  }
+  const raw = Math.max(0, Math.min(4, Math.round(parsed.score)));
+  return {
+    judgeId,
+    score: raw / 4,
+    rawScore: raw,
+    pass: raw >= 3,
+    rationale: parsed.rationale,
+    usage,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Correctness judge — needs gold answer
+// ──────────────────────────────────────────────────────────────────────────────
+
 const correctnessJudge: Judge = {
-  id: "correctness",
-  description:
-    "LLM-as-judge: scores candidate against gold answer on a 0–4 factual-correctness rubric.",
+  id: correctnessRubric.id,
+  description: correctnessRubric.description,
   usesApi: true,
+  hash: correctnessRubric.hash,
   judge: async (ctx) => {
     if (!ctx.gold) {
       return {
-        judgeId: "correctness",
+        judgeId: correctnessRubric.id,
         score: 0,
         rationale: "no gold answer in dataset; correctness judge skipped",
       };
@@ -134,64 +220,18 @@ const correctnessJudge: Judge = {
       .filter(Boolean)
       .join("\n");
 
-    const client = new Anthropic({ apiKey: ctx.apiKey });
-    const response = await client.messages.create({
-      model: ctx.judgeModel,
-      max_tokens: 256,
-      system: CORRECTNESS_RUBRIC,
-      messages: [{ role: "user", content: userMessage }],
-    });
-    const usage = judgeUsage(response, ctx.judgeModel);
-
-    const text = response.content
-      .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-
-    const parsed = parseJudgeJson(text);
-    if (!parsed) {
-      return {
-        judgeId: "correctness",
-        score: 0,
-        rationale: `judge could not parse JSON; raw: ${text.slice(0, 120)}`,
-        usage,
-      };
-    }
-
-    const raw = Math.max(0, Math.min(4, Math.round(parsed.score)));
-    return {
-      judgeId: "correctness",
-      score: raw / 4,
-      rawScore: raw,
-      pass: raw >= 3,
-      rationale: parsed.rationale,
-      usage,
-    };
+    const { text, usage } = await callLlmJudge(
+      correctnessRubric,
+      userMessage,
+      ctx,
+    );
+    return buildJudgeScore(correctnessRubric.id, text, usage);
   },
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Groundedness judge — LLM-as-judge with retrieved snippets as context
+// Groundedness judge — needs retrievedContext
 // ──────────────────────────────────────────────────────────────────────────────
-
-const GROUNDEDNESS_RUBRIC = `You evaluate whether an AI assistant's answer is GROUNDED in source material — that is, whether every factual claim in the answer can be traced to one of the retrieved Wikipedia snippets shown to you.
-
-The assistant has access to a search_wikipedia tool. You will see each query it ran and the snippets it received. Your job is to check whether the answer's factual claims (dates, names, numbers, identifications, causal claims) are present in those snippets — NOT whether the answer is correct against the world. An answer can be correct yet ungrounded (the model recalled it from training data without retrieval support); that should score low here.
-
-Scoring rubric (0–4):
-- 0 = Ungrounded. The answer makes specific factual claims that are NOT present in any retrieved snippet.
-- 1 = Mostly ungrounded. A few claims supported, several are not.
-- 2 = Partially grounded. Roughly half the factual claims trace to retrieved snippets.
-- 3 = Well-grounded. All major factual claims trace to retrieved snippets; minor framing or stylistic content may be unsupported but adds no new facts.
-- 4 = Fully grounded. Every factual claim is clearly supported by a specific retrieved snippet, OR the answer correctly states that the retrieved data does not cover the question.
-
-Notes:
-- Stylistic or explanatory framing without new facts is fine.
-- If multiple snippets cover the same claim, the claim is grounded.
-- If a snippet contradicts the answer, that's an error against grounding (the answer didn't follow what was retrieved).
-
-Respond ONLY with a single JSON object on one line:
-{"score": <0|1|2|3|4>, "rationale": "<one short sentence>"}`;
 
 function formatRetrievedContext(context: RetrievedContext[]): string {
   if (context.length === 0) return "(no searches performed)";
@@ -212,15 +252,14 @@ function formatRetrievedContext(context: RetrievedContext[]): string {
 }
 
 const groundednessJudge: Judge = {
-  id: "groundedness",
-  description:
-    "LLM-as-judge: scores whether the answer's factual claims trace back to retrieved Wikipedia snippets.",
+  id: groundednessRubric.id,
+  description: groundednessRubric.description,
   usesApi: true,
+  hash: groundednessRubric.hash,
   judge: async (ctx) => {
-    // No searches → can't be grounded by definition.
     if (!ctx.retrievedContext || ctx.retrievedContext.length === 0) {
       return {
-        judgeId: "groundedness",
+        judgeId: groundednessRubric.id,
         score: 0,
         rawScore: 0,
         pass: false,
@@ -239,39 +278,12 @@ const groundednessJudge: Judge = {
       ctx.answer || "(empty)",
     ].join("\n");
 
-    const client = new Anthropic({ apiKey: ctx.apiKey });
-    const response = await client.messages.create({
-      model: ctx.judgeModel,
-      max_tokens: 256,
-      system: GROUNDEDNESS_RUBRIC,
-      messages: [{ role: "user", content: userMessage }],
-    });
-    const usage = judgeUsage(response, ctx.judgeModel);
-
-    const text = response.content
-      .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-
-    const parsed = parseJudgeJson(text);
-    if (!parsed) {
-      return {
-        judgeId: "groundedness",
-        score: 0,
-        rationale: `judge could not parse JSON; raw: ${text.slice(0, 120)}`,
-        usage,
-      };
-    }
-
-    const raw = Math.max(0, Math.min(4, Math.round(parsed.score)));
-    return {
-      judgeId: "groundedness",
-      score: raw / 4,
-      rawScore: raw,
-      pass: raw >= 3,
-      rationale: parsed.rationale,
-      usage,
-    };
+    const { text, usage } = await callLlmJudge(
+      groundednessRubric,
+      userMessage,
+      ctx,
+    );
+    return buildJudgeScore(groundednessRubric.id, text, usage);
   },
 };
 

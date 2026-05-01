@@ -1,0 +1,36 @@
+{
+  "id": "multihop",
+  "description": "Multi-part questions that require combining or comparing facts.",
+  "items": [
+    {
+      "id": "moon-walker-age",
+      "question": "Who was the first person to walk on the Moon, and how old were they at the time?",
+      "gold": "Neil Armstrong, age 38 at the time. Born 5 August 1930; first Moon walk 21 July 1969 (UTC). Requires combining birth date with mission date.",
+      "notes": "Two-step: identify the person, then compute or look up their age."
+    },
+    {
+      "id": "marie-curie-nobels",
+      "question": "When did Marie Curie win her two Nobel Prizes, and in which fields?",
+      "gold": "1903 in Physics (shared with Pierre Curie and Henri Becquerel) and 1911 in Chemistry (sole laureate). She is the only person to win Nobel Prizes in two different sciences.",
+      "notes": "Tests retrieving multiple specific facts about the same person."
+    },
+    {
+      "id": "largest-countries",
+      "question": "What are the two largest countries by area, and roughly how big is each?",
+      "gold": "Russia is the largest at approximately 17.1 million km² (about 11% of Earth's land area). Canada is second at approximately 9.98 million km².",
+      "notes": "Tests retrieving two related facts and presenting them comparatively."
+    },
+    {
+      "id": "eiffel-vs-liberty",
+      "question": "Which is taller, the Eiffel Tower or the Statue of Liberty, and by how much?",
+      "gold": "The Eiffel Tower is significantly taller. Eiffel Tower: ~330 m (1,083 ft) including antennas. Statue of Liberty: ~93 m (305 ft) total height including pedestal and foundation, or ~46 m (151 ft) for the statue itself. The difference is roughly 235–280 m depending on how each is measured.",
+      "notes": "Tests comparing two retrieved measurements; partial credit for getting the direction right even if exact figures differ."
+    },
+    {
+      "id": "shakespeare-life-span",
+      "question": "When was Shakespeare born and when did he die, and how old was he when he died?",
+      "gold": "Born around 23 April 1564 (baptized 26 April 1564); died 23 April 1616. He was 52 years old at his death.",
+      "notes": "Three-part question; tests both retrieval and a small derivation."
+    }
+  ]
+}

@@ -513,6 +513,12 @@ function renderTable(rows: RenderRow[]): string {
 export type ReportMeta = {
   runAt: string;
   runDurationMs: number;
+  /** Hash fingerprints of artifacts used in this run, by id. */
+  artifacts?: {
+    prompts: Record<string, string>;
+    judges: Record<string, string>;
+    datasets: Record<string, string>;
+  };
 };
 
 export function renderAllReports(
@@ -543,11 +549,19 @@ export function renderAllReports(
     lines.push(`run at:       ${meta.runAt}`);
     lines.push(`duration:     ${fmtMs(meta.runDurationMs)}`);
   }
+  const fmtIdHash = (id: string, hash?: string) =>
+    hash ? `${id} (${hash})` : id;
   lines.push(`model:        ${config.model}`);
   lines.push(`judge model:  ${config.judgeModel}`);
-  lines.push(`prompts:      ${config.prompts.join(", ")}`);
-  lines.push(`datasets:     ${config.datasets.join(", ")}`);
-  lines.push(`judges:       ${config.judges.join(", ")}`);
+  lines.push(
+    `prompts:      ${config.prompts.map((p) => fmtIdHash(p, meta?.artifacts?.prompts[p])).join(", ")}`,
+  );
+  lines.push(
+    `datasets:     ${config.datasets.map((d) => fmtIdHash(d, meta?.artifacts?.datasets[d])).join(", ")}`,
+  );
+  lines.push(
+    `judges:       ${config.judges.map((j) => fmtIdHash(j, meta?.artifacts?.judges[j])).join(", ")}`,
+  );
   lines.push(`iterations:   ${config.iterations}`);
   lines.push(
     `thinking:     ${config.thinking ? `enabled (${config.thinking.budgetTokens} budget tokens)` : "off"}`,

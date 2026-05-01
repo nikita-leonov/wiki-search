@@ -84,9 +84,12 @@ npm run eval > evals/runs/last-report.md
 ```
 
 Adding a new prompt, dataset, or judge:
-- **Prompt**: drop a file under `src/prompts/` and register it in `src/prompts/index.ts`.
-- **Dataset**: drop a JSONL file under `evals/datasets/` and register it in `evals/registry.ts`. Each line: `{"id": "...", "question": "...", "gold": "..." (optional), "notes": "..." (optional)}`.
-- **Judge**: add it to `evals/judges.ts` and include it in the `JUDGES` registry.
+- **Prompt**: drop a `<id>.yaml` file under `src/prompts/`. It's auto-discovered. The YAML carries `id`, `description`, `systemPrompt`, and the full `tool` schema.
+- **Dataset**: drop an `<id>.json` file under `evals/datasets/`. Auto-discovered. Format: `{ "id": "...", "description": "...", "items": [{"id": "...", "question": "...", "gold": "..." (optional), "notes": "..." (optional)}, ...] }`.
+- **LLM judge**: drop a `<id>.yaml` rubric under `evals/judges/`, then wire a small piece of code in `evals/judges.ts` that builds the user-message (since each judge needs different inputs from the row) and registers it in `JUDGES`.
+- **Heuristic judge** (e.g. citation): pure code in `evals/judges.ts`; no YAML.
+
+Every YAML / JSON artifact gets a SHA-256 short-fingerprint at load time, recorded in `report-<ts>.json` under `artifacts.{prompts,judges,datasets}` so each run is pinned to the exact versions it consumed.
 
 ## Design notes
 
@@ -100,23 +103,25 @@ Adding a new prompt, dataset, or judge:
 ```
 src/
   wikipedia.ts        MediaWiki API client
-  prompts/            Prompt registry — single source of truth, used by CLI and evals
+  prompts/            Prompt registry — auto-discovers YAML files
+    *.yaml            Each prompt is its own YAML file
     types.ts          PromptConfig type
-    v1.ts / v0.ts     Variants
-    index.ts          Registry + DEFAULT_PROMPT_ID
+    index.ts          Registry + DEFAULT_PROMPT_ID + hash
+  hash.ts             SHA-256 short-fingerprint helper for artifact pinning
   agent.ts            Tool-use loop (prompt + thinking config via options)
   cli.ts              CLI entry point
   loadEnv.ts          Tiny .env parser (zero deps)
 evals/
-  cli.ts              Standalone eval entry point
+  cli.ts              Standalone eval entry point — records artifact hashes per run
   runner.ts           Matrix orchestration, concurrency, live progress
-  reports.ts          Aggregation + three rotating-primary-key markdown reports
-  registry.ts         Resolves prompt / dataset / judge ids
-  judges.ts           Citation (heuristic) + correctness (LLM) judges
+  reports.ts          Aggregation + three rotating-primary-key text reports
+  registry.ts         Resolves prompt / dataset / judge ids; auto-discovers JSON datasets
+  judges/             LLM-judge rubric YAML files (correctness, groundedness)
+  judges.ts           Citation (heuristic, code-only) + LLM judge wiring
   cost.ts             Per-model price table + cost estimation
   types.ts            Shared eval types
   config.json         Default eval matrix
-  datasets/           JSONL test sets (factual / ambiguous / multihop)
+  datasets/           JSON test sets (factual / ambiguous / multihop)
 scripts/
   smoke-wikipedia.ts  Standalone Wikipedia search smoke test
 .env.example

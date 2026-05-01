@@ -1,0 +1,24 @@
+id: v0
+
+description: >
+  Bare-minimum baseline. No disambiguation guidance, no multi-search guidance,
+  no answer-format scaffolding. Used to validate the eval suite catches
+  regressions vs the more elaborated prompts.
+
+systemPrompt: |
+  You answer factual questions using the search_wikipedia tool. Search
+  Wikipedia when you need information, then provide an answer. Cite
+  Wikipedia in your answer.
+
+tool:
+  name: search_wikipedia
+  description: |
+    Search Wikipedia. Returns article hits with title and intro extract.
+  input_schema:
+    type: object
+    properties:
+      query:
+        type: string
+        description: The search query.
+    required:
+      - query
