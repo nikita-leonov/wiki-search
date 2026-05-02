@@ -1,5 +1,8 @@
 .tmp
-evals/runs/
+# evals/runs/ is committed as project history (eval data + per-row logs).
+# The HTML comparison view is a regeneratable artifact, so still ignored.
+evals/runs/comparison.html
+evals/runs/*.html
 
 # Logs
 logs

@@ -1,0 +1,882 @@
+{
+  "config": {
+    "prompts": [
+      "v1"
+    ],
+    "datasets": [
+      "factual"
+    ],
+    "judges": [
+      "correctness",
+      "citation"
+    ],
+    "iterations": 3,
+    "model": "claude-haiku-4-5-20251001",
+    "judgeModel": "claude-sonnet-4-6",
+    "concurrency": 4,
+    "maxTurns": 6
+  },
+  "rows": [
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "eiffel-completed",
+      "question": "When was the Eiffel Tower completed?",
+      "iterationIdx": 0,
+      "answer": "The Eiffel Tower was completed in **1889**. It was constructed from 1887 to 1889 by a company under the engineer Gustave Eiffel and built as the centrepiece of the 1889 World's Fair ([Eiffel Tower](https://en.wikipedia.org/wiki/Eiffel_Tower)).\n\n**Sources:**\n- [Eiffel Tower](https://en.wikipedia.org/wiki/Eiffel_Tower)",
+      "answerChars": 318,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 3919,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 171,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4090,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 2867,
+      "costUsd": 0.004774,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "The candidate correctly states 1889 and adds relevant context about construction period and purpose, matching the gold answer with appropriate additional detail."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "eiffel-completed",
+      "question": "When was the Eiffel Tower completed?",
+      "iterationIdx": 1,
+      "answer": "The Eiffel Tower was completed in **1889**. It was designed and built by the company of engineer Gustave Eiffel from 1887 to 1889, and was constructed as the centrepiece of the 1889 World's Fair in Paris ([Eiffel Tower](https://en.wikipedia.org/wiki/Eiffel_Tower)).\n\n**Sources:**\n- [Eiffel Tower](https://en.wikipedia.org/wiki/Eiffel_Tower)",
+      "answerChars": 340,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 3919,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 175,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4094,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 3331,
+      "costUsd": 0.004794,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "Correctly states 1889 and adds context about Gustave Eiffel, construction period 1887-1889, and the 1889 World's Fair."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "eiffel-completed",
+      "question": "When was the Eiffel Tower completed?",
+      "iterationIdx": 2,
+      "answer": "The Eiffel Tower was completed in 1889. It was designed and built by Gustave Eiffel's company from 1887 to 1889, and was constructed as the centerpiece of the 1889 World's Fair in Paris.\n\nSources:\n- [Eiffel Tower](https://en.wikipedia.org/wiki/Eiffel_Tower)",
+      "answerChars": 257,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 3919,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 147,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4066,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 3134,
+      "costUsd": 0.004654,
+      "citationCount": 1,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "The candidate correctly identifies 1889 as the completion year and adds accurate context about the construction period (1887-1889) and its purpose as the centerpiece of the 1889 World's Fair."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 1,
+          "pass": true,
+          "rationale": "1 wikipedia.org URL cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "telephone-inventor",
+      "question": "Who patented the first practical telephone?",
+      "iterationIdx": 0,
+      "answer": "[Alexander Graham Bell](https://en.wikipedia.org/wiki/Alexander_Graham_Bell) is credited with patenting the first practical telephone. He received the first U.S. patent for the telephone on March 7, 1876.\n\nHowever, it's worth noting that while Bell holds the patent for the \"first practical telephone,\" the invention of the telephone itself was [the culmination of work done by many different people](https://en.wikipedia.org/wiki/Invention_of_the_telephone), including Antonio Meucci, Philipp Reis, and Elisha Gray. There were [significant controversies over conflicting patent claims](https://en.wikipedia.org/wiki/Elisha_Gray_and_Alexander_Bell_telephone_controversy) from these inventors.\n\n**Sources:**\n- [Alexander Graham Bell](https://en.wikipedia.org/wiki/Alexander_Graham_Bell)\n- [History of the telephone](https://en.wikipedia.org/wiki/History_of_the_telephone)\n- [Invention of the telephone](https://en.wikipedia.org/wiki/Invention_of_the_telephone)",
+      "answerChars": 959,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 3544,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 313,
+        "thinkTokensApprox": 0,
+        "totalTokens": 3857,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 3621,
+      "costUsd": 0.005109,
+      "citationCount": 6,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "The candidate correctly identifies Bell and the 1876 patent date, mentions Meucci and other contributors, and adds appropriate context about patent controversies and competing inventors."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 6,
+          "pass": true,
+          "rationale": "6 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "telephone-inventor",
+      "question": "Who patented the first practical telephone?",
+      "iterationIdx": 1,
+      "answer": "[Alexander Graham Bell](https://en.wikipedia.org/wiki/Alexander_Graham_Bell) is credited with patenting the first practical telephone. He was awarded the first U.S. patent for the telephone on [March 7, 1876](https://en.wikipedia.org/wiki/Alexander_Graham_Bell). \n\nHowever, it's worth noting that the [invention of the telephone](https://en.wikipedia.org/wiki/Invention_of_the_telephone) involved contributions from multiple people, including Antonio Meucci, Philipp Reis, and Elisha Gray, and there was significant patent litigation over conflicting claims. But Bell is the one recognized for the first practical telephone patent.\n\n**Sources:**\n- [Alexander Graham Bell](https://en.wikipedia.org/wiki/Alexander_Graham_Bell)\n- [History of the telephone](https://en.wikipedia.org/wiki/History_of_the_telephone)\n- [Invention of the telephone](https://en.wikipedia.org/wiki/Invention_of_the_telephone)",
+      "answerChars": 898,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 3544,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 296,
+        "thinkTokensApprox": 0,
+        "totalTokens": 3840,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 3072,
+      "costUsd": 0.005024,
+      "citationCount": 6,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "The candidate answer correctly identifies Alexander Graham Bell and the 1876 patent date, mentions Antonio Meucci's contributions as noted in the gold answer, and adds additional relevant context about other contributors and patent litigation."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 6,
+          "pass": true,
+          "rationale": "6 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "telephone-inventor",
+      "question": "Who patented the first practical telephone?",
+      "iterationIdx": 2,
+      "answer": "[Alexander Graham Bell](https://en.wikipedia.org/wiki/Alexander_Graham_Bell) patented the first practical telephone. He was awarded the first U.S. patent for the telephone on [March 7, 1876](https://en.wikipedia.org/wiki/Alexander_Graham_Bell).\n\nIt's worth noting that the telephone's invention was not entirely uncontested. While Bell is credited with the first practical telephone patent, the [history of the telephone](https://en.wikipedia.org/wiki/History_of_the_telephone) involved contributions from multiple inventors, including Antonio Meucci, Philipp Reis, and Elisha Gray, each with competing claims. However, Bell's patent established him as the holder of the first practical telephone patent in the United States.\n\n**Sources:**\n- [Alexander Graham Bell](https://en.wikipedia.org/wiki/Alexander_Graham_Bell)\n- [History of the telephone](https://en.wikipedia.org/wiki/History_of_the_telephone)",
+      "answerChars": 903,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 3544,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 285,
+        "thinkTokensApprox": 0,
+        "totalTokens": 3829,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 3303,
+      "costUsd": 0.0049689999999999995,
+      "citationCount": 5,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "The candidate answer correctly identifies Bell and the 1876 patent date, and adds appropriate nuance about competing inventors including Meucci, Reis, and Gray, which aligns with and expands on the gold answer."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 5,
+          "pass": true,
+          "rationale": "5 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "australia-capital",
+      "question": "What is the capital of Australia?",
+      "iterationIdx": 0,
+      "answer": "The capital of Australia is **Canberra** ([Canberra](https://en.wikipedia.org/wiki/Canberra)). It is the capital city of Australia and the largest population centre in the Australian Capital Territory. Canberra was established following the federation of the Australian colonies in 1901 to serve as the seat of government, and it became a compromise between the two largest cities, Melbourne and Sydney.\n\n**Sources:**\n- [Canberra](https://en.wikipedia.org/wiki/Canberra)",
+      "answerChars": 470,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 4181,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 178,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4359,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 2891,
+      "costUsd": 0.005071,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "The candidate correctly identifies Canberra as the capital of Australia and adds accurate historical context about its founding and role as a compromise between Melbourne and Sydney."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "australia-capital",
+      "question": "What is the capital of Australia?",
+      "iterationIdx": 1,
+      "answer": "The capital of Australia is **Canberra** ([Canberra](https://en.wikipedia.org/wiki/Canberra)). It is the largest population centre in the Australian Capital Territory and was established following the federation of the Australian colonies to serve as the seat of government. Canberra was chosen as a compromise between Melbourne and Sydney, Australia's two largest cities at the time.\n\n**Sources:**\n- [Canberra](https://en.wikipedia.org/wiki/Canberra)",
+      "answerChars": 451,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 4181,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 171,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4352,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 2800,
+      "costUsd": 0.005036,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "Correctly identifies Canberra as the capital and adds accurate historical context about the Melbourne-Sydney compromise and its role as seat of government."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "australia-capital",
+      "question": "What is the capital of Australia?",
+      "iterationIdx": 2,
+      "answer": "The capital of Australia is [Canberra](https://en.wikipedia.org/wiki/Canberra). It is located in the Australian Capital Territory and was established as a compromise between Melbourne and Sydney to serve as the seat of government following the federation of the Australian colonies in 1901.\n\n**Sources:**\n- [Canberra](https://en.wikipedia.org/wiki/Canberra)",
+      "answerChars": 357,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 4181,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 149,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4330,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 2751,
+      "costUsd": 0.004926,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "Correct capital city with additional accurate context about its location, history, and why it was chosen."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "wwii-end-europe",
+      "question": "When did World War II end in Europe?",
+      "iterationIdx": 0,
+      "answer": "World War II ended in Europe on **May 8, 1945**, when [Field Marshal Wilhelm Keitel signed the German Instrument of Surrender](https://en.wikipedia.org/wiki/End_of_World_War_II_in_Europe), marking Germany's unconditional surrender to the Allies. This date is celebrated as [Victory in Europe Day](https://en.wikipedia.org/wiki/End_of_World_War_II_in_Europe), while Russia celebrates May 9 as Victory Day.\n\nThis followed the fall of Berlin to Soviet troops on May 2 and Adolf Hitler's suicide on April 30, 1945. While some fighting continued briefly after the surrender (such as the Prague offensive ending on May 11), the formal end of the war in Europe is marked by May 8, 1945.\n\n**Sources:**\n- [End of World War II in Europe](https://en.wikipedia.org/wiki/End_of_World_War_II_in_Europe)",
+      "answerChars": 788,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 3966,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 283,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4249,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 3592,
+      "costUsd": 0.005381,
+      "citationCount": 3,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "The candidate answer correctly states May 8, 1945 as V-E Day with Germany's unconditional surrender, and adds accurate contextual detail about Keitel's signing, Hitler's suicide, fall of Berlin, and Russia's May 9 celebration."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 3,
+          "pass": true,
+          "rationale": "3 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "wwii-end-europe",
+      "question": "When did World War II end in Europe?",
+      "iterationIdx": 1,
+      "answer": "World War II ended in Europe on **May 8, 1945**, when Field Marshal Wilhelm Keitel signed the German Instrument of Surrender in Karlshorst, Berlin. This date is celebrated as [Victory in Europe Day](https://en.wikipedia.org/wiki/End_of_World_War_II_in_Europe). \n\nThe surrender came after Adolf Hitler's suicide on April 30, 1945, and the Soviet capture of Berlin on May 2, 1945. However, some fighting continued for a few days afterward, with the last significant battles concluding by May 11, 1945.\n\n**Sources:**\n- [End of World War II in Europe](https://en.wikipedia.org/wiki/End_of_World_War_II_in_Europe)",
+      "answerChars": 608,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 3966,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 236,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4202,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 3390,
+      "costUsd": 0.0051459999999999995,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "Correct date and V-E Day, plus adds accurate contextual detail about Keitel's signing, Hitler's suicide, Soviet capture of Berlin, and residual fighting."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "wwii-end-europe",
+      "question": "When did World War II end in Europe?",
+      "iterationIdx": 2,
+      "answer": "World War II ended in Europe on **8 May 1945**, when Field Marshal Wilhelm Keitel signed the German Instrument of Surrender in Karlshorst, Berlin. This date is celebrated as [Victory in Europe Day](https://en.wikipedia.org/wiki/End_of_World_War_II_in_Europe). (Russia celebrates 9 May as Victory Day instead.)\n\nThis followed Adolf Hitler's suicide on 30 April and the Soviet capture of Berlin on 2 May. Although the formal surrender occurred on 8 May, some fighting continued on the Eastern Front for a few more days, with the last major operations ending by 11 May 1945.\n\n**Sources:**\n- [End of World War II in Europe](https://en.wikipedia.org/wiki/End_of_World_War_II_in_Europe)",
+      "answerChars": 680,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 3966,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 249,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4215,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 3678,
+      "costUsd": 0.005211,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "The candidate correctly states 8 May 1945 as V-E Day and adds accurate, relevant context about the signing location, Keitel's role, Hitler's suicide, the Soviet capture of Berlin, and the Russian celebration on 9 May."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "pride-prejudice",
+      "question": "Who wrote Pride and Prejudice?",
+      "iterationIdx": 0,
+      "answer": "[Jane Austen](https://en.wikipedia.org/wiki/Pride_and_Prejudice) wrote *Pride and Prejudice*. The novel was written when she was 20–21 years old and was published in 1813. It is her second published novel, though it was the third novel she wrote.\n\n**Sources:**\n- Pride and Prejudice (https://en.wikipedia.org/wiki/Pride_and_Prejudice)",
+      "answerChars": 334,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 4256,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 162,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4418,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 2585,
+      "costUsd": 0.005066,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "Correct author and publication year, with additional accurate context about Austen's age when writing it and its place in her bibliography."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "pride-prejudice",
+      "question": "Who wrote Pride and Prejudice?",
+      "iterationIdx": 1,
+      "answer": "[Jane Austen](https://en.wikipedia.org/wiki/Pride_and_Prejudice) wrote Pride and Prejudice. The novel was written when she was aged 20–21 and published in 1813. It is her second published novel, though the third to be written.\n\n**Sources:**\n- Pride and Prejudice (https://en.wikipedia.org/wiki/Pride_and_Prejudice)",
+      "answerChars": 314,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 4256,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 156,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4412,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 2927,
+      "costUsd": 0.0050360000000000005,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "Correctly identifies Jane Austen and the 1813 publication date, and adds accurate context about when it was written and its publication order."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "pride-prejudice",
+      "question": "Who wrote Pride and Prejudice?",
+      "iterationIdx": 2,
+      "answer": "[Jane Austen](https://en.wikipedia.org/wiki/Pride_and_Prejudice) wrote *Pride and Prejudice*. She wrote the novel when she was aged 20–21, and it was published in 1813 as her second published novel.\n\n**Sources:**\n- [Pride and Prejudice](https://en.wikipedia.org/wiki/Pride_and_Prejudice)",
+      "answerChars": 287,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 4256,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 153,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4409,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 2491,
+      "costUsd": 0.005021,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "Correctly identifies Jane Austen as the author with the 1813 publication date, and adds accurate context about her age and it being her second published novel."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "speed-of-light",
+      "question": "What is the speed of light in a vacuum?",
+      "iterationIdx": 0,
+      "answer": "The speed of light in a vacuum is exactly **299,792,458 meters per second** (m/s), commonly denoted as *c*. This value is approximate to about **1 billion kilometers per hour** or **700 million miles per hour** ([Speed of light](https://en.wikipedia.org/wiki/Speed_of_light)).\n\nThis is a universal physical constant and is exact by international agreement—the meter itself is defined based on this speed of light value.\n\n**Sources:**\n- [Speed of light](https://en.wikipedia.org/wiki/Speed_of_light)",
+      "answerChars": 498,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 4055,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 191,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4246,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 2813,
+      "costUsd": 0.00501,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "Candidate gives the exact value of 299,792,458 m/s, notes it is exact by definition, adds correct context about the meter being defined by it, and includes additional unit conversions."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "speed-of-light",
+      "question": "What is the speed of light in a vacuum?",
+      "iterationIdx": 1,
+      "answer": "The speed of light in a vacuum is exactly **299,792,458 metres per second** (or approximately **299,792.458 km/s**). This value is commonly denoted by the letter *c*.\n\nThis speed is defined precisely by international agreement: a meter is formally defined as the distance light travels in a vacuum during 1⁄299,792,458 of a second. In everyday terms, this is approximately 1 billion kilometers per hour or 700 million miles per hour.\n\n([Speed of light](https://en.wikipedia.org/wiki/Speed_of_light))",
+      "answerChars": 499,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 3903,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 190,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4093,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 2986,
+      "costUsd": 0.004853,
+      "citationCount": 1,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "The candidate gives the exact value matching the gold answer, adds correct context about the definition of the meter, the notation 'c', and additional unit conversions, all without any factual errors."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 1,
+          "pass": true,
+          "rationale": "1 wikipedia.org URL cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "speed-of-light",
+      "question": "What is the speed of light in a vacuum?",
+      "iterationIdx": 2,
+      "answer": "The speed of light in a vacuum is exactly **299,792,458 meters per second** (m/s), often denoted as *c*. This is approximately **1 billion kilometers per hour** or **700 million miles per hour**.\n\nThis value is exact by international agreement — the metre is formally defined as the distance light travels in a vacuum in 1/299,792,458 of a second. This speed is a universal constant that is the same for all observers, regardless of their relative velocity, and serves as the ultimate speed limit for any information, matter, or energy traveling through space.\n\n**Sources:**\n- [Speed of light](https://en.wikipedia.org/wiki/Speed_of_light)",
+      "answerChars": 639,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 4074,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 214,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4288,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 3363,
+      "costUsd": 0.005144,
+      "citationCount": 1,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "The candidate answer gives the exact correct value (299,792,458 m/s), correctly notes it is defined/exact, and adds appropriate context about the metre definition, universal constancy, and approximate equivalents in other units."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 1,
+          "pass": true,
+          "rationale": "1 wikipedia.org URL cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "moon-landing-date",
+      "question": "When did Apollo 11 land humans on the Moon?",
+      "iterationIdx": 0,
+      "answer": "Apollo 11 landed humans on the Moon on **July 20, 1969** at 20:17 UTC. Astronauts Neil Armstrong and Buzz Aldrin descended to the lunar surface aboard the Lunar Module Eagle in the Sea of Tranquility, while Michael Collins remained in lunar orbit. ([Apollo 11](https://en.wikipedia.org/wiki/Apollo_11))\n\n**Sources:**\n- [Apollo 11](https://en.wikipedia.org/wiki/Apollo_11)",
+      "answerChars": 371,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 3952,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 173,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4125,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 2716,
+      "costUsd": 0.004817,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "The candidate gives the correct date (July 20, 1969) with the precise landing time (20:17 UTC), names all three astronauts and their roles, and identifies the landing site, adding useful context beyond the gold answer."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "moon-landing-date",
+      "question": "When did Apollo 11 land humans on the Moon?",
+      "iterationIdx": 1,
+      "answer": "Apollo 11 landed humans on the Moon on **July 20, 1969** at 20:17 UTC. Neil Armstrong and Buzz Aldrin descended to the lunar surface aboard the Lunar Module Eagle in the Sea of Tranquility, while Michael Collins remained in lunar orbit ([Apollo 11](https://en.wikipedia.org/wiki/Apollo_11)).\n\n**Sources:**\n- [Apollo 11](https://en.wikipedia.org/wiki/Apollo_11)",
+      "answerChars": 360,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 3952,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 168,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4120,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 2323,
+      "costUsd": 0.004791999999999999,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "The candidate correctly states July 20, 1969 with the precise UTC time of 20:17, and adds accurate context about the crew and landing site."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    },
+    {
+      "promptId": "v1",
+      "datasetId": "factual",
+      "itemId": "moon-landing-date",
+      "question": "When did Apollo 11 land humans on the Moon?",
+      "iterationIdx": 2,
+      "answer": "Apollo 11 landed humans on the Moon on **July 20, 1969** at 20:17 UTC. Astronauts Neil Armstrong and Buzz Aldrin descended to the lunar surface in the Lunar Module Eagle, landing in the Sea of Tranquility, while Michael Collins remained in orbit aboard the Command Module ([Apollo 11](https://en.wikipedia.org/wiki/Apollo_11)).\n\n**Sources:**\n- [Apollo 11](https://en.wikipedia.org/wiki/Apollo_11)",
+      "answerChars": 396,
+      "turns": 2,
+      "searches": 1,
+      "stopped": "end_turn",
+      "usage": {
+        "inputTokens": 4191,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 174,
+        "thinkTokensApprox": 0,
+        "totalTokens": 4365,
+        "cacheHitRate": 0
+      },
+      "latencyMs": 2752,
+      "costUsd": 0.005061,
+      "citationCount": 2,
+      "judgeScores": [
+        {
+          "judgeId": "correctness",
+          "score": 1,
+          "rawScore": 4,
+          "pass": true,
+          "rationale": "The candidate answer gives the correct date (July 20, 1969) and adds accurate, relevant details including the precise UTC time (20:17), crew members, landing site, and command module pilot."
+        },
+        {
+          "judgeId": "citation",
+          "score": 1,
+          "rawScore": 2,
+          "pass": true,
+          "rationale": "2 wikipedia.org URLs cited"
+        }
+      ],
+      "error": null
+    }
+  ]
+}
