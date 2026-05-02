@@ -23,6 +23,7 @@ import { basename, join, resolve } from "node:path";
 
 const HELP = `Usage:
   npm run report:html -- [DIR] [--limit N] [--out PATH]
+  npm run report:html -- --file <report.json> [--out PATH]
 
 Reads all report-*.json files in DIR (default: evals/runs/), takes the N most
 recent by runAt timestamp (default: 50), and writes a self-contained HTML
@@ -30,6 +31,8 @@ page that lets you build cohort-vs-cohort data-point comparisons.
 
 Options:
   --limit N    Use only the N most recent reports (default 50).
+  --file PATH  Use only the specified single report-*.json file
+               (overrides DIR / --limit; useful for showcasing one run).
   --out PATH   Output HTML path (default: <DIR>/comparison.html).
   --help, -h   Show this help.
 `;
@@ -59,10 +62,12 @@ function parseArgs(argv: string[]): {
   dir: string;
   limit: number;
   out?: string;
+  file?: string;
 } {
   let dir: string | undefined;
   let limit = 50;
   let out: string | undefined;
+  let file: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "--help" || a === "-h") {
@@ -77,6 +82,8 @@ function parseArgs(argv: string[]): {
       limit = v;
     } else if (a === "--out") {
       out = argv[++i];
+    } else if (a === "--file") {
+      file = argv[++i];
     } else if (a.startsWith("--")) {
       process.stderr.write(`Unknown flag: ${a}\n`);
       process.exit(1);
@@ -87,7 +94,7 @@ function parseArgs(argv: string[]): {
       process.exit(1);
     }
   }
-  return { dir: resolve(dir ?? "evals/runs"), limit, out };
+  return { dir: resolve(dir ?? "evals/runs"), limit, out, file };
 }
 
 function slimReport(raw: RawReport, path: string): SlimReport {
@@ -1091,9 +1098,33 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </html>`;
 }
 
-const { dir, limit, out } = parseArgs(process.argv.slice(2));
-const reports = loadReports(dir, limit);
-const outputPath = out ? resolve(out) : join(dir, "comparison.html");
+const { dir, limit, out, file } = parseArgs(process.argv.slice(2));
+
+let reports: SlimReport[];
+let defaultOutDir: string;
+if (file) {
+  const filePath = resolve(file);
+  let raw: RawReport;
+  try {
+    raw = JSON.parse(readFileSync(filePath, "utf-8")) as RawReport;
+  } catch (err) {
+    process.stderr.write(
+      `Failed to read ${filePath}: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    process.exit(1);
+  }
+  if (typeof raw.runAt !== "string") {
+    process.stderr.write(`${filePath}: missing "runAt" — not a valid report file\n`);
+    process.exit(1);
+  }
+  reports = [slimReport(raw, filePath)];
+  defaultOutDir = resolve(filePath, "..");
+} else {
+  reports = loadReports(dir, limit);
+  defaultOutDir = dir;
+}
+
+const outputPath = out ? resolve(out) : join(defaultOutDir, "comparison.html");
 writeFileSync(outputPath, buildHtml(reports));
 process.stderr.write(
   `Wrote: ${outputPath} (${reports.length} report${reports.length === 1 ? "" : "s"} — last ${reports.length} by runAt)\n`,

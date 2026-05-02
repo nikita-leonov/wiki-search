@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -274,13 +274,13 @@ async function runDemo(args: Args, apiKey: string): Promise<void> {
   process.stderr.write(
     [
       "",
-      "Now running a comprehensive eval:",
+      "Now running a quick eval:",
       "  • prompts:    v0, v1, v3",
       "  • datasets:   all available",
       "  • judges:     all available",
-      "  • iterations: 5",
+      "  • iterations: 1   (kept low to avoid making you wait)",
       "",
-      "Estimated cost: ~$5–7 in Anthropic API calls. Estimated time: a few minutes.",
+      "Estimated cost: ~$1 in Anthropic API calls. Estimated time: ~1 minute.",
       "",
     ].join("\n"),
   );
@@ -291,7 +291,7 @@ async function runDemo(args: Args, apiKey: string): Promise<void> {
   const evalArgs = [
     "run", "eval", "--",
     "--prompts", "v0,v1,v3",
-    "--iterations", "5",
+    "--iterations", "1",
   ];
   const evalRes = spawnSync("npm", evalArgs, {
     stdio: "inherit",
@@ -319,11 +319,87 @@ async function runDemo(args: Args, apiKey: string): Promise<void> {
   process.stdout.write(
     [
       "",
-      "Done! Open the comparison report (limited to the latest run) at:",
+      "That's how the report looks for a single-iteration demo run.",
+      `Open it in a browser:  file://${htmlPath}`,
+      "",
+    ].join("\n"),
+  );
+
+  const wantBig = (await ask(
+    "Want to see the same view for a much bigger pre-prepared run (50 iterations, all prompts × datasets × judges)? (y/n) ",
+  )).toLowerCase();
+  if (wantBig !== "y" && wantBig !== "yes") return;
+
+  const biggest = findBiggestReport();
+  if (!biggest) {
+    process.stderr.write(
+      "\nCouldn't find a pre-prepared report under evals/runs/. Skipping.\n",
+    );
+    return;
+  }
+
+  process.stderr.write(
+    `\nUsing pre-prepared report:\n  ${biggest}\n\n`,
+  );
+
+  // Console (text) report first so the user sees the summary right here.
+  const consoleRes = spawnSync(
+    "npm",
+    ["run", "report:console", "--", biggest],
+    { stdio: "inherit", cwd: REPO_ROOT, env },
+  );
+  if (consoleRes.status !== 0) {
+    process.stderr.write("\nreport:console failed.\n");
+    return;
+  }
+
+  // HTML report scoped to that single big file.
+  const bigHtmlRes = spawnSync(
+    "npm",
+    ["run", "report:html", "--", "--file", biggest],
+    { stdio: "inherit", cwd: REPO_ROOT, env },
+  );
+  if (bigHtmlRes.status !== 0) {
+    process.stderr.write("\nreport:html for the big run failed.\n");
+    return;
+  }
+
+  process.stdout.write(
+    [
+      "",
+      "The text view above is a summary — the HTML view lets you slice the same",
+      "data interactively (cohort vs cohort, per-iteration sweeps, hash-aware",
+      "filtering). Continue exploring at:",
       `  file://${htmlPath}`,
       "",
     ].join("\n"),
   );
+}
+
+// Pick the largest report-*.json under evals/runs/ as the "pre-prepared"
+// demo file. Largest is a reasonable proxy for "most data points" in our
+// committed run history.
+function findBiggestReport(): string | null {
+  const dir = join(REPO_ROOT, "evals", "runs");
+  let best: { path: string; size: number } | null = null;
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return null;
+  }
+  for (const f of entries) {
+    if (!f.startsWith("report-") || !f.endsWith(".json")) continue;
+    const p = join(dir, f);
+    try {
+      const st = statSync(p);
+      if (!st.isFile()) continue;
+      if (!best || st.size > best.size) best = { path: p, size: st.size };
+    } catch {
+      // skip unreadable
+    }
+  }
+  return best?.path ?? null;
 }
 
 function resolveApiKey(args: Args): string | null {
