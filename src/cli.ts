@@ -265,7 +265,7 @@ async function runDemo(args: Args, apiKey: string): Promise<void> {
     isFirst = false;
 
     const answer = (await ask(
-      "\nAnother search? (y/n)  [n proceeds to a comprehensive eval] ",
+      "\nAnother search? (y/N) [N proceeds to the eval step] ",
     )).toLowerCase();
     if (answer === "y" || answer === "yes") continue;
     break;
@@ -274,7 +274,7 @@ async function runDemo(args: Args, apiKey: string): Promise<void> {
   process.stderr.write(
     [
       "",
-      "Now running a quick eval:",
+      "Ready to run a quick eval:",
       "  • prompts:    v0, v1, v3",
       "  • datasets:   all available",
       "  • judges:     all available",
@@ -282,53 +282,65 @@ async function runDemo(args: Args, apiKey: string): Promise<void> {
       "",
       "Estimated cost: ~$1 in Anthropic API calls. Estimated time: ~1 minute.",
       "",
+      "If you skip this step, we'll still show you the prepared big report",
+      "as an example of what the eval output looks like.",
+      "",
     ].join("\n"),
   );
-  await pressEnter("Press Enter to start the eval (Ctrl-C to abort)... ");
+  const evalAnswer = (
+    await ask("Run the eval now? (Y/n) ")
+  ).toLowerCase();
+  const skipEval = evalAnswer === "n" || evalAnswer === "no";
 
   const env = { ...process.env, ANTHROPIC_API_KEY: apiKey };
-
-  const evalArgs = [
-    "run", "eval", "--",
-    "--prompts", "v0,v1,v3",
-    "--iterations", "1",
-  ];
-  const evalRes = spawnSync("npm", evalArgs, {
-    stdio: "inherit",
-    cwd: REPO_ROOT,
-    env,
-  });
-  if (evalRes.status !== 0) {
-    process.stderr.write(
-      "\nEval did not finish successfully — skipping HTML report generation.\n",
-    );
-    process.exit(evalRes.status ?? 1);
-  }
-
-  const htmlRes = spawnSync(
-    "npm",
-    ["run", "report:html", "--", "--limit", "1"],
-    { stdio: "inherit", cwd: REPO_ROOT, env },
-  );
-  if (htmlRes.status !== 0) {
-    process.stderr.write("\nHTML report generation failed.\n");
-    process.exit(htmlRes.status ?? 1);
-  }
-
   const htmlPath = join(REPO_ROOT, "evals", "runs", "comparison.html");
-  process.stdout.write(
-    [
-      "",
-      "That's how the report looks for a single-iteration demo run.",
-      `Open it in a browser:  file://${htmlPath}`,
-      "",
-    ].join("\n"),
-  );
+
+  if (!skipEval) {
+    const evalArgs = [
+      "run", "eval", "--",
+      "--prompts", "v0,v1,v3",
+      "--iterations", "1",
+    ];
+    const evalRes = spawnSync("npm", evalArgs, {
+      stdio: "inherit",
+      cwd: REPO_ROOT,
+      env,
+    });
+    if (evalRes.status !== 0) {
+      process.stderr.write(
+        "\nEval did not finish successfully — skipping HTML report generation.\n",
+      );
+      process.exit(evalRes.status ?? 1);
+    }
+
+    const htmlRes = spawnSync(
+      "npm",
+      ["run", "report:html", "--", "--limit", "1"],
+      { stdio: "inherit", cwd: REPO_ROOT, env },
+    );
+    if (htmlRes.status !== 0) {
+      process.stderr.write("\nHTML report generation failed.\n");
+      process.exit(htmlRes.status ?? 1);
+    }
+
+    process.stdout.write(
+      [
+        "",
+        "That's how the report looks for a single-iteration demo run.",
+        `Open it in a browser:  file://${htmlPath}`,
+        "",
+      ].join("\n"),
+    );
+  } else {
+    process.stderr.write(
+      "\nSkipping the eval — proceeding directly to the prepared big report.\n",
+    );
+  }
 
   const wantBig = (await ask(
-    "Want to see the same view for a much bigger pre-prepared run (50 iterations, all prompts × datasets × judges)? (y/n) ",
+    "Want to see the same view for a much bigger pre-prepared run (50 iterations, all prompts × datasets × judges)? (Y/n) ",
   )).toLowerCase();
-  if (wantBig !== "y" && wantBig !== "yes") return;
+  if (wantBig === "n" || wantBig === "no") return;
 
   const biggest = findBiggestReport();
   if (!biggest) {
