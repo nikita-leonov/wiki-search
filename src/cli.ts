@@ -281,13 +281,13 @@ async function runDemo(args: Args, apiKey: string): Promise<void> {
   process.stderr.write(
     [
       "",
-      "Ready to run a quick eval:",
-      "  • prompts:    v0, v1, v3",
-      "  • datasets:   all available",
+      "Ready to run a quick demo eval:",
+      "  • prompts:    v0, v3              (compares the bare baseline against the strict-grounded variant)",
+      "  • datasets:   factual",
       "  • judges:     all available",
-      "  • iterations: 1   (kept low to avoid making you wait)",
+      "  • iterations: 1                   (kept low to avoid making you wait)",
       "",
-      "Estimated cost: ~$1 in Anthropic API calls. Estimated time: ~1 minute.",
+      "Estimated cost: well under $1 in Anthropic API calls. Estimated time: under a minute.",
       "",
       "If you skip this step, we'll still show you the prepared big report",
       "as an example of what the eval output looks like.",
@@ -305,7 +305,8 @@ async function runDemo(args: Args, apiKey: string): Promise<void> {
   if (!skipEval) {
     const evalArgs = [
       "run", "eval", "--",
-      "--prompts", "v0,v1,v3",
+      "--prompts", "v0,v3",
+      "--datasets", "factual",
       "--iterations", "1",
     ];
     const evalRes = spawnSync("npm", evalArgs, {
