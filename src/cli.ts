@@ -340,14 +340,19 @@ async function runDemo(args: Args, apiKey: string): Promise<void> {
     );
   } else {
     process.stderr.write(
-      "\nSkipping the eval — proceeding directly to the prepared big report.\n",
+      "\nSkipping the eval — going straight to the prepared big report.\n",
     );
   }
 
-  const wantBig = (await ask(
-    "Want to see the same view for a much bigger pre-prepared run (50 iterations, all prompts × datasets × judges)? (Y/n) ",
-  )).toLowerCase();
-  if (wantBig === "n" || wantBig === "no") return;
+  // Only prompt for the big report when the user ran the small eval.
+  // If they skipped the eval, jumping straight to the big report is the
+  // whole point of saying "n" — re-asking would be redundant.
+  if (!skipEval) {
+    const wantBig = (await ask(
+      "Want to see the same view for a much bigger pre-prepared run (50 iterations, all prompts × datasets × judges)? (Y/n) ",
+    )).toLowerCase();
+    if (wantBig === "n" || wantBig === "no") return;
+  }
 
   const biggest = findBiggestReport();
   if (!biggest) {
