@@ -55,6 +55,12 @@ API key resolution (in order of precedence):
 // the eval use the same vocabulary.
 type DemoQuestion = { dataset: string; question: string };
 
+// Datasets whose items should NOT be drawn for the interactive demo.
+// `unanswerable` is excluded because every question is designed to have no
+// good answer (gibberish strings, fictional places, calculator-style
+// arithmetic) — that's a bad first impression for an open-ended demo.
+const DEMO_DATASET_BLOCKLIST = new Set(["unanswerable"]);
+
 function loadDemoQuestions(): DemoQuestion[] {
   const out: DemoQuestion[] = [];
   let files: string[] = [];
@@ -70,6 +76,7 @@ function loadDemoQuestions(): DemoQuestion[] {
         items?: Array<{ question?: string }>;
       };
       const datasetId = data.id ?? f.replace(/\.json$/, "");
+      if (DEMO_DATASET_BLOCKLIST.has(datasetId)) continue;
       for (const item of data.items ?? []) {
         if (typeof item.question === "string" && item.question)
           out.push({ dataset: datasetId, question: item.question });
