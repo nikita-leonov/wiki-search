@@ -235,15 +235,24 @@ async function main(): Promise<void> {
 
   const apiKey = resolveApiKey(args);
   if (!apiKey) {
+    const repoRoot = resolve(__dirname, "..");
+    const envPath = join(repoRoot, ".env");
     process.stderr.write(
       [
         "Error: no Anthropic API key found.",
         "",
-        "Provide one of:",
-        "  • --api-key sk-ant-...",
-        "  • export ANTHROPIC_API_KEY=sk-ant-... in your shell",
-        "  • copy .env.example to .env and fill in ANTHROPIC_API_KEY",
-        "",
+        `Create a .env file at:`,
+        `  ${envPath}`,
+        ``,
+        `with the following line:`,
+        `  ANTHROPIC_API_KEY=sk-ant-api03-...`,
+        ``,
+        `(A template is provided at ${join(repoRoot, ".env.example")} — copy it and edit.)`,
+        ``,
+        `Alternatively:`,
+        `  • pass --api-key sk-ant-... on the command line, or`,
+        `  • export ANTHROPIC_API_KEY=sk-ant-... in your shell`,
+        ``,
       ].join("\n"),
     );
     process.exit(1);

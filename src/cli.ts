@@ -1,3 +1,9 @@
+import { spawnSync } from "node:child_process";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { createInterface } from "node:readline";
+import { fileURLToPath } from "node:url";
+
 import { answerQuestion, DEFAULT_MODEL, type AgentEvent } from "./agent.ts";
 import { loadEnv } from "./loadEnv.ts";
 import {
@@ -5,6 +11,10 @@ import {
   getPrompt,
   listPromptIds,
 } from "./prompts/index.ts";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(__dirname, "..");
+const DATASETS_DIR = join(REPO_ROOT, "evals", "datasets");
 
 type Args = {
   question?: string;
@@ -41,12 +51,54 @@ API key resolution (in order of precedence):
   3. ANTHROPIC_API_KEY in a .env file in the project root
      (copy .env.example to .env and fill in your key)`;
 
-const DEMO_QUESTIONS: string[] = [
-  "When was the Eiffel Tower completed and how tall is it?",
-  "Who is generally credited with inventing the telephone, and is there controversy about it?",
-  "What is mercury's atomic number, and is the element named after the planet or vice versa?",
-  "What were the main causes of the Great Fire of London in 1666?",
-];
+// Demo questions are sourced from the actual eval datasets so the demo and
+// the eval use the same vocabulary.
+type DemoQuestion = { dataset: string; question: string };
+
+function loadDemoQuestions(): DemoQuestion[] {
+  const out: DemoQuestion[] = [];
+  let files: string[] = [];
+  try {
+    files = readdirSync(DATASETS_DIR).filter((f) => f.endsWith(".json"));
+  } catch {
+    return out;
+  }
+  for (const f of files) {
+    try {
+      const data = JSON.parse(readFileSync(join(DATASETS_DIR, f), "utf-8")) as {
+        id?: string;
+        items?: Array<{ question?: string }>;
+      };
+      const datasetId = data.id ?? f.replace(/\.json$/, "");
+      for (const item of data.items ?? []) {
+        if (typeof item.question === "string" && item.question)
+          out.push({ dataset: datasetId, question: item.question });
+      }
+    } catch {
+      // skip malformed datasets
+    }
+  }
+  return out;
+}
+
+function pickRandom<T>(arr: T[]): T | undefined {
+  if (arr.length === 0) return undefined;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function ask(message: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  return new Promise((resolveAnswer) => {
+    rl.question(message, (answer) => {
+      rl.close();
+      resolveAnswer(answer.trim());
+    });
+  });
+}
+
+async function pressEnter(message: string): Promise<void> {
+  await ask(message);
+}
 
 function parseArgs(argv: string[]): Args {
   const args: Args = { demo: false, verbose: false, help: false };
@@ -174,6 +226,106 @@ async function runOne(
   }
 }
 
+// Demo flow:
+//   1. Brief intro, wait for Enter.
+//   2. Loop: pick a random dataset question, run it, ask "another? (y/n)".
+//   3. On "n": describe the eval that's about to run, wait for Enter.
+//   4. Spawn `npm run eval -- --prompts v0,v1,v3 --iterations 5`.
+//   5. Spawn `npm run report:html -- --limit 1` so the comparison page only
+//      includes the just-finished run.
+//   6. Print the file:// URL for the user to open.
+async function runDemo(args: Args, apiKey: string): Promise<void> {
+  const questions = loadDemoQuestions();
+  if (questions.length === 0) {
+    process.stderr.write(
+      "No demo questions found — evals/datasets/*.json is empty or missing.\n",
+    );
+    process.exit(1);
+  }
+
+  process.stderr.write(
+    [
+      "",
+      "This demo will run the agent on a random question from one of our eval",
+      "datasets. After each search, you can run another, or end the interactive",
+      "phase to kick off a comprehensive eval comparison across prompts.",
+      "",
+    ].join("\n"),
+  );
+  await pressEnter("Press Enter to begin (Ctrl-C to abort)... ");
+
+  let isFirst = true;
+  while (true) {
+    const pick = pickRandom(questions)!;
+    if (!isFirst) process.stderr.write("\n──────\n");
+    process.stderr.write(
+      `\n(random question — dataset: ${pick.dataset})\n`,
+    );
+    await runOne(pick.question, args, apiKey);
+    isFirst = false;
+
+    const answer = (await ask(
+      "\nAnother search? (y/n)  [n proceeds to a comprehensive eval] ",
+    )).toLowerCase();
+    if (answer === "y" || answer === "yes") continue;
+    break;
+  }
+
+  process.stderr.write(
+    [
+      "",
+      "Now running a comprehensive eval:",
+      "  • prompts:    v0, v1, v3",
+      "  • datasets:   all available",
+      "  • judges:     all available",
+      "  • iterations: 5",
+      "",
+      "Estimated cost: ~$5–7 in Anthropic API calls. Estimated time: a few minutes.",
+      "",
+    ].join("\n"),
+  );
+  await pressEnter("Press Enter to start the eval (Ctrl-C to abort)... ");
+
+  const env = { ...process.env, ANTHROPIC_API_KEY: apiKey };
+
+  const evalArgs = [
+    "run", "eval", "--",
+    "--prompts", "v0,v1,v3",
+    "--iterations", "5",
+  ];
+  const evalRes = spawnSync("npm", evalArgs, {
+    stdio: "inherit",
+    cwd: REPO_ROOT,
+    env,
+  });
+  if (evalRes.status !== 0) {
+    process.stderr.write(
+      "\nEval did not finish successfully — skipping HTML report generation.\n",
+    );
+    process.exit(evalRes.status ?? 1);
+  }
+
+  const htmlRes = spawnSync(
+    "npm",
+    ["run", "report:html", "--", "--limit", "1"],
+    { stdio: "inherit", cwd: REPO_ROOT, env },
+  );
+  if (htmlRes.status !== 0) {
+    process.stderr.write("\nHTML report generation failed.\n");
+    process.exit(htmlRes.status ?? 1);
+  }
+
+  const htmlPath = join(REPO_ROOT, "evals", "runs", "comparison.html");
+  process.stdout.write(
+    [
+      "",
+      "Done! Open the comparison report (limited to the latest run) at:",
+      `  file://${htmlPath}`,
+      "",
+    ].join("\n"),
+  );
+}
+
 function resolveApiKey(args: Args): string | null {
   if (args.apiKey && args.apiKey.trim()) return args.apiKey.trim();
   loadEnv();
@@ -196,24 +348,30 @@ async function main(): Promise<void> {
 
   const apiKey = resolveApiKey(args);
   if (!apiKey) {
+    const envPath = join(REPO_ROOT, ".env");
     process.stderr.write(
       [
         "Error: no Anthropic API key found.",
         "",
-        "Provide one of:",
-        "  • --api-key sk-ant-...",
-        "  • export ANTHROPIC_API_KEY=sk-ant-... in your shell",
-        "  • copy .env.example to .env and fill in ANTHROPIC_API_KEY",
-        "",
+        `Create a .env file at:`,
+        `  ${envPath}`,
+        ``,
+        `with the following line:`,
+        `  ANTHROPIC_API_KEY=sk-ant-api03-...`,
+        ``,
+        `(A template is provided at ${join(REPO_ROOT, ".env.example")} — copy it and edit.)`,
+        ``,
+        `Alternatively:`,
+        `  • pass --api-key sk-ant-... on the command line, or`,
+        `  • export ANTHROPIC_API_KEY=sk-ant-... in your shell`,
+        ``,
       ].join("\n"),
     );
     process.exit(1);
   }
 
   if (args.demo) {
-    for (const q of DEMO_QUESTIONS) {
-      await runOne(q, args, apiKey);
-    }
+    await runDemo(args, apiKey);
   } else if (args.question) {
     await runOne(args.question, args, apiKey);
   }

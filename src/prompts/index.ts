@@ -57,7 +57,7 @@ function discoverPrompts(): Record<string, PromptConfig> {
 
 export const PROMPTS: Record<string, PromptConfig> = discoverPrompts();
 
-export const DEFAULT_PROMPT_ID = "v1";
+export const DEFAULT_PROMPT_ID = "v3";
 
 export function getPrompt(id: string): PromptConfig {
   const p = PROMPTS[id];
